@@ -24,21 +24,45 @@ struct Node* push(struct Node*, struct Node*);
 void print(struct Node*);
 %}
 
+%s PRAGMA
+%s PRAGMA_DONE
+%s COMMENT1
+%s COMMENT2
+
 space       [ \t]+
-delimiter   [,;\(\)\[\]\{\}]
+delimiter   (","|";"|"("|")"|"["|"]"|"{"|"}")
 keyword     ("while"|"do"|"if"|"else"|"true"|"false"|"for"|"int"|"print"|"const"|"read"|"boolean"|"bool"|"void"|"float"|"double"|"string"|"continue"|"break"|"return")
 digit       [0-9]
-letter      [a-zA-z_]
+letter      [a-zA-Z_]
 identifier  {letter}({digit}|{letter})*
 integer     (0|[1-9]{digit}*)
 float       {digit}+\.{digit}+
 scientific  ({digit}+|{float})[eE][\+\-]?{digit}+
-
-%s PRAGMA
-%s PRAGMA_DONE
-%s COMMENT
+string      \"(\\.|[^"\\\n])*\"
 
 %%
+    /* handle comment */
+<COMMENT1>. {
+    LIST;
+}
+
+<COMMENT1>"\n" {
+    LIST;
+    if (Opt_Source) printf("%d:%s\n", linenum, buf);
+    ++linenum;
+    buf[0] = '\0';
+    BEGIN 0;
+}
+
+<COMMENT2>. {
+    LIST;
+}
+
+<COMMENT2>"*/" {
+    LIST;
+    BEGIN 0;
+}
+
     /* for pragma source */
 <PRAGMA>"source"{space}+"on" {
     LIST;
@@ -78,27 +102,27 @@ scientific  ({digit}+|{float})[eE][\+\-]?{digit}+
     BEGIN PRAGMA_DONE;
 }
 
-    /* handle character after pragma directive */
-<PRAGMA_DONE>(("//")(.)*)?"\n" {
+<PRAGMA>[^ \t] {
+    fprintf(stderr, "Error at line %d: %s\n", linenum, yytext);
+    exit(1);
+}
+
+    /* handle comment after pragma directive */
+<PRAGMA_DONE>"//" {
     LIST;
-    if (Opt_Source) printf("%d:%s\n", linenum, buf);
-    ++linenum;
-    buf[0] = '\0';
-    BEGIN 0;
+    BEGIN COMMENT1;
 }
 
 <PRAGMA_DONE>"/*" {
     LIST;
-    BEGIN COMMENT;
+    BEGIN COMMENT2;
 }
 
-    /* handle comment */
-<COMMENT>. {
+<PRAGMA_DONE>"\n" {
     LIST;
-}
-
-<COMMENT>"*/" {
-    LIST;
+    if (Opt_Source) printf("%d:%s\n", linenum, buf);
+    ++linenum;
+    buf[0] = '\0';
     BEGIN 0;
 }
 
@@ -125,37 +149,32 @@ scientific  ({digit}+|{float})[eE][\+\-]?{digit}+
 <INITIAL>"||" { token("||"); }
 <INITIAL>"!" { token("!"); }
 
-^"#pragma" {
+    /* handle string*/
+<INITIAL>{string} {
+    char real[yyleng];
+    for (int i=0, j=0; i<yyleng; i++) {
+        if (yytext[i] == '\\') {
+            if (yytext[i+1] == '\"'|| yytext[i+1] == '\\') i++;
+        }
+        real[j++] = yytext[i];
+        if(i == yyleng-1)   real[j-1] = '\0';
+    }
+    tokenString("string", &real[1]);
+}
+
+<INITIAL>^"#pragma" {
     LIST;
     BEGIN PRAGMA;
 }
 
-"/*" {
+<INITIAL>"//" {
     LIST;
-    BEGIN COMMENT;
+    BEGIN COMMENT1;
 }
 
-"//"(.)*?"\n" {
+<INITIAL>"/*" {
     LIST;
-    if (Opt_Source) printf("%d:%s\n", linenum, buf);
-    ++linenum;
-    buf[0] = '\0';
-}
-
-    /* handle string*/
-\"(\\.|[^"\\])*\" {
-    char tmp[yyleng];
-    int i = 0, j = 0;
-    while (i < yyleng) {
-        if (yytext[i] == '\\') {
-            if (yytext[i+1] == '\"'|| yytext[i+1] == '\\') i++;
-        }
-        tmp[j++] = yytext[i++];
-    }
-    tmp[j-1] = '\0';
-    char *real = &tmp[1];
-
-    tokenString("string", real);
+    BEGIN COMMENT2;
 }
 
 \n {
