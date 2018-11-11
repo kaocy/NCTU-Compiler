@@ -2,4 +2,5 @@
 *.pdf
 *.zip
 lex.yy.c
+scanner.c
 0516007/
