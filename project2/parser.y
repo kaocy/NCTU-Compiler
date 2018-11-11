@@ -8,9 +8,21 @@ extern char *yytext;            /* declared by lex */
 extern char buf[256];           /* declared in lex.l */
 %}
 
-%token SEMICOLON    /* ; */
-%token ID           /* identifier */
-%token INT          /* keyword */
+%token ID
+%token READ PRINT
+%token BOOL INT FLOAT DOUBLE STRING CONST VOID
+%token WHILE DO FOR IF ELSE
+%token RETURN BREAK CONTINUE
+%token TRUE FALSE
+%token INT_CONSTANT FLOAT_CONSTANT STRING_CONSTANT SCIENTIFIC
+
+%right ASSIGN
+%left OR
+%left AND
+%right NOT
+%left LT LE EQ NE GT GE
+%left '+' '-' 
+%left '*' '/' '%'
 
 %%
 
