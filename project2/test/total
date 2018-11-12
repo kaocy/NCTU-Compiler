@@ -1,0 +1,15 @@
+#pragma source off
+#pragma token off
+#pragma statistic off
+
+int fun(); 
+void total()
+{
+
+    int b;
+}
+int fun()
+{
+    return 10;
+}
+
