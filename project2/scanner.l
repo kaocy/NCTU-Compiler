@@ -23,7 +23,7 @@ typedef struct ids{
 	int freq;
 	struct ids *next;
 } id;
-id *id_head;
+id *id_head = NULL;
 
 void set(id **, char *);
 id *new_id();
@@ -158,7 +158,7 @@ id *new_id();
 "*" { token("*"); return '*'; }
 "/" { token("/"); return '/'; }
 "%" { token("%"); return '%'; }
-"=" { token("="); return ASSIGN; }
+"=" { token("="); return '='; }
 "<" { token("<"); return LT; }
 "<=" { token("<="); return LE; }
 "!=" { token("!="); return NE; }
@@ -175,8 +175,8 @@ while { tokenString("KW", yytext); return WHILE; }
 do { tokenString("KW", yytext); return DO; }
 if { tokenString("KW", yytext); return IF; }
 else { tokenString("KW", yytext); return ELSE; }
-true { tokenString("KW", yytext); return TRUE; } 
-false { tokenString("KW", yytext); return FALSE; }
+true { tokenString("KW", yytext); return BOOL_CONSTANT; } 
+false { tokenString("KW", yytext); return BOOL_CONSTANT; }
 for { tokenString("KW", yytext); return FOR; }
 const { tokenString("KW", yytext); return CONST; }
 int { tokenString("KW", yytext); return INT; }
@@ -322,6 +322,7 @@ return { tokenString("KW", yytext); return RETURN; }
 }
 %%
 
+/*
 int main(int argc, char **argv) {
 	if (argc == 1) {
 		yyin = stdin;
@@ -360,6 +361,7 @@ int main(int argc, char **argv) {
 
 	exit(0);
 }
+*/
 
 void set(id **head, char *yytext) {
 	id *offset = *head;
