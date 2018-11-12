@@ -1,0 +1,35 @@
+#pragma source off
+#pragma token off
+#pragma statistic off
+
+
+int main() {
+	continue;
+    break;
+    return 333;
+
+	for (;;) {
+		while(1) {
+			if (0) {}
+		}
+	}
+
+	double z = -0.0;
+
+	print a[3];
+	print 1+"sssss";
+	read a[3];
+
+	a = !3+3;
+
+	a = 3+(!3);
+
+	// error
+	a = 3+!3;
+
+	a = !!b;
+
+	// error
+	read 1+2;
+	
+}

@@ -29,20 +29,25 @@ int yyerror(char *msg);
 
 /********************** Program Units **********************/
 
-program : decl_and_def_list
+program : decl_list defi decl_and_def_list
         ;
 
-decl_and_def_list : decl_and_def_list declaration_list
-                  | decl_and_def_list definition_list
+decl_and_def_list : decl_and_def_list decl
+                  | decl_and_def_list defi
+                  |
                   ;
 
-declaration_list : declaration_list const_decl
-                 | declaration_list var_decl
-                 | declaration_list func_decl
-                 ;
+decl_list : decl_list decl
+          |
+          ;
 
-definition_list : definition_list func_defi
-                ;
+decl : const_decl
+     | var_decl
+     | func_decl
+     ;
+
+defi : func_defi
+     ;
 
 func_decl : type identifier '(' argument_list ')' ';'
           | VOID identifier '(' argument_list ')' ';'
@@ -50,8 +55,10 @@ func_decl : type identifier '(' argument_list ')' ';'
 
 func_defi : type identifier '(' argument_list ')' compound
           | VOID identifier '(' argument_list ')' compound
+          ;
 
 argument_list : argument MoreArguments
+              |
               ;
 
 MoreArguments : ',' argument MoreArguments
@@ -101,7 +108,7 @@ statement : compound
           | while
           | for
           | jump
-          | function_invocation
+          | function_invocation ';'
           ;
 
 compound : '{' compound_body '}'
@@ -212,14 +219,17 @@ boolean_expression : expression
 
 initial_expression : identifier '=' expression
                    | expression
+                   |
                    ;
 
 control_expression : identifier '=' expression
                    | expression
+                   |
                    ;
 
 increment_expression : identifier '=' expression
                      | expression
+                     |
                      ;
 
 %%

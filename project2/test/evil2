@@ -1,0 +1,28 @@
+#pragma source off
+#pragma token off
+#pragma statistic off
+
+int a() {
+	return 0;
+}
+
+int a();
+
+int main() {
+	if (3.14){}
+	if ("sss"){}
+
+	// error
+	string ss() {
+		
+	}
+
+	// error
+	void b();
+
+	// error
+	if(true){
+		else{}
+	}
+	
+}

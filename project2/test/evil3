@@ -1,0 +1,23 @@
+#pragma source off
+#pragma token off
+#pragma statistic off
+
+
+int main() {
+	int c[100] = {}, tt=c;
+	bb();
+	{
+		apap();
+	}
+	b[100.4]["ssh"][a()] = --2;
+
+	a = 3 + true;
+	
+	
+	// error
+	const int b[2], a = 1+2;
+
+	// error
+	int a[x+1];
+	
+}

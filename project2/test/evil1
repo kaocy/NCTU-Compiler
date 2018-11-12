@@ -1,0 +1,15 @@
+#pragma source off
+#pragma token off
+#pragma statistic off
+
+string test () {
+	for (1<2; "qqq"; gcd()) {}
+	a = b < c;
+	a = -(-(1)+8);
+
+	// error
+	a = b = c;
+
+	// error
+	a < b < c;
+}
