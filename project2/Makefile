@@ -1,20 +1,22 @@
 #makefile for scanner
 LEX = lex
-LEXFN = lex.l
+YACC = yacc -d -v
 CC = gcc
-LIBS = -lfl
+LIBS = -lfl -ly
 RM = rm -f
-SCANNERN = scanner
-SCANNERSN = scanner.c
 
-all: scanner
+TARGET = parser
+OBJECT = lex.yy.c y.tab.h y.tab.c y.output
 
-scanner: lex
-	$(CC) -o $(SCANNERN) $(SCANNERSN) $(LIBS)
+all: lex.yy.c y.tab.c
+	$(CC) -o $(TARGET) lex.yy.c y.tab.c $(LIBS)
 
-lex:
-	$(LEX) -o $(SCANNERSN) $(LEXFN)
+y.tab.c: parser.y
+	$(YACC) parser.y
+
+lex.yy.c: scanner.l
+	$(LEX) scanner.l
 
 clean:
-	$(RM) $(SCANNERN)
-	$(RM) $(SCANNERSN)
+	$(RM) $(TARGET)
+	$(RM) $(OBJECT)

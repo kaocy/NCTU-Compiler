@@ -1,6 +1,11 @@
 .DS_Store
+
+lex.yy.c
+y.tab.h
+y.tab.c 
+y.output
+parser
+
+0516007/
 *.pdf
 *.zip
-lex.yy.c
-scanner.c
-0516007/
