@@ -2,7 +2,8 @@
 #pragma token off
 #pragma statistic off
 
-int a() {
+// error
+int a(int a[2][8], double z[]) {
 	return 0;
 }
 
@@ -14,7 +15,7 @@ int main() {
 
 	// error
 	string ss() {
-		
+
 	}
 
 	// error

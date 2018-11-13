@@ -3,9 +3,16 @@
 #pragma statistic off
 
 string test () {
-	for (1<2; "qqq"; gcd()) {}
+	for (1<2; "qqq"; gcd(a[2][8])) {}
 	a = b < c;
 	a = -(-(1)+8);
+
+	for (;;) {}
+
+	// error
+	for (a[!1]=2; 1=2;) {
+		if (0) {}
+	}
 
 	// error
 	a = b = c;

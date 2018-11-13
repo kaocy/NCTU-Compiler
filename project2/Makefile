@@ -1,4 +1,4 @@
-#makefile for scanner
+
 LEX = lex
 YACC = yacc -d -v
 CC = gcc

@@ -66,6 +66,7 @@ MoreArguments : ',' argument MoreArguments
               ;
 
 argument : type identifier
+         | type array_declaration
          ;
 
 /*************** Data Types and Declarations ***************/
@@ -129,24 +130,46 @@ simple : variable_reference '=' expression ';'
 expression : expression OR expression
            | expression AND expression
            | NOT expression
-           | expression LT expression
-           | expression LE expression
-           | expression EQ expression
-           | expression NE expression
-           | expression GT expression
-           | expression GE expression
-           | expression '+' expression
-           | expression '-' expression
-           | expression '*' expression
-           | expression '/' expression
-           | expression '%' expression
-           | '-' expression %prec '*'
+           | expression LT expression_no_start_with_NOT
+           | expression LE expression_no_start_with_NOT
+           | expression EQ expression_no_start_with_NOT
+           | expression NE expression_no_start_with_NOT
+           | expression GT expression_no_start_with_NOT
+           | expression GE expression_no_start_with_NOT
+           | expression '+' expression_no_start_with_NOT
+           | expression '-' expression_no_start_with_NOT
+           | expression '*' expression_no_start_with_NOT
+           | expression '/' expression_no_start_with_NOT
+           | expression '%' expression_no_start_with_NOT
+           | '-' expression_no_start_with_NOT %prec '*'
            | '(' expression ')' %prec '*'
            | literal_constant
            | identifier
            | function_invocation
            | array_reference
            ;
+
+/* add to handle the problem logic not operation has low precedence */
+expression_no_start_with_NOT : expression_no_start_with_NOT OR expression
+                             | expression_no_start_with_NOT AND expression
+                             | expression_no_start_with_NOT LT expression_no_start_with_NOT
+                             | expression_no_start_with_NOT LE expression_no_start_with_NOT
+                             | expression_no_start_with_NOT EQ expression_no_start_with_NOT
+                             | expression_no_start_with_NOT NE expression_no_start_with_NOT
+                             | expression_no_start_with_NOT GT expression_no_start_with_NOT
+                             | expression_no_start_with_NOT GE expression_no_start_with_NOT
+                             | expression_no_start_with_NOT '+' expression_no_start_with_NOT
+                             | expression_no_start_with_NOT '-' expression_no_start_with_NOT
+                             | expression_no_start_with_NOT '*' expression_no_start_with_NOT
+                             | expression_no_start_with_NOT '/' expression_no_start_with_NOT
+                             | expression_no_start_with_NOT '%' expression_no_start_with_NOT
+                             | '-' expression_no_start_with_NOT %prec '*'
+                             | '(' expression ')' %prec '*'
+                             | literal_constant
+                             | identifier
+                             | function_invocation
+                             | array_reference
+                             ;
 
 conditional : IF '(' boolean_expression ')' compound ELSE compound 
             | IF '(' boolean_expression ')' compound
@@ -163,6 +186,9 @@ jump : RETURN expression ';'
      | BREAK ';'
      | CONTINUE ';'
      ;
+
+function_invocation : identifier '(' expression_list ')'
+                    ;
 
 /************************ Utilities ************************/
 
@@ -203,9 +229,6 @@ array_reference_dimension : '[' expression ']' array_reference_dimension
 initial_array : '{' expression_list '}'
               ;
 
-function_invocation : identifier '(' expression_list ')'
-                    ;
-
 expression_list : expression MoreExpressions
                 |
                 ;
@@ -217,17 +240,17 @@ MoreExpressions : ',' expression MoreExpressions
 boolean_expression : expression
                    ;
 
-initial_expression : identifier '=' expression
+initial_expression : variable_reference '=' expression
                    | expression
                    |
                    ;
 
-control_expression : identifier '=' expression
+control_expression : variable_reference '=' expression
                    | expression
                    |
                    ;
 
-increment_expression : identifier '=' expression
+increment_expression : variable_reference '=' expression
                      | expression
                      |
                      ;

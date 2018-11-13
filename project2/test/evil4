@@ -8,21 +8,23 @@ int main() {
     break;
     return 333;
 
-	for (;;) {
-		while(1) {
-			if (0) {}
-		}
-	}
-
+	int t = -3;
 	double z = -0.0;
 
-	print a[3];
+	print a[!3];
 	print 1+"sssss";
 	read a[3];
 
 	a = !3+3;
 
+	a = 1 && !3;
+
 	a = 3+(!3);
+
+	a = -(!1);
+
+	// error
+	a = -!1;
 
 	// error
 	a = 3+!3;
