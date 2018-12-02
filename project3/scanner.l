@@ -1,4 +1,5 @@
 %{
+#include <string.h>
 #include "y.tab.h"
 
 #define LIST                strcat(buf, yytext)
@@ -8,9 +9,10 @@
 #define MAX_LINE_LENG 256
 #define MAX_ID_LENG 256
 
-int Opt_Source = 1;
-int Opt_Token = 1;
-int Opt_Statistic = 1;
+int Opt_Source = 0;
+int Opt_Token = 0;
+int Opt_Statistic = 0;
+int Opt_Symbol = 0;
 int linenum = 1;
 char buf[MAX_LINE_LENG];
 char strContent[MAX_LINE_LENG];
@@ -30,6 +32,7 @@ id *new_id();
 %x SOURCE
 %x TOKEN
 %x STATISTIC
+%x SYMBOL
 %x OTHER
 %x STR
 %x STR_ESCAPE
@@ -59,6 +62,11 @@ id *new_id();
 <PRAGMA>"statistic" {
     LIST;
     BEGIN STATISTIC;
+}
+
+<PRAGMA>"symbol" {
+    LIST;
+    BEGIN SYMBOL;
 }
 
 <PRAGMA>[\t ]+ {
@@ -133,6 +141,27 @@ id *new_id();
     exit(0);
 }
 
+<SYMBOL>"on" {
+    LIST;
+    Opt_Symbol = 1;
+    BEGIN OTHER;
+}
+
+<SYMBOL>"off" {
+    LIST;
+    Opt_Symbol = 0;
+    BEGIN OTHER;
+}
+
+<SYMBOL>[\t ]+ {
+    LIST;
+}
+
+<SYMBOL>. {
+    printf("Error at line %d: %s\n", linenum, yytext);
+    exit(0);
+}
+
 <OTHER>"[\t ]*" {
     LIST;
 }
@@ -161,33 +190,33 @@ id *new_id();
     exit(0);
 }
 
-"(" { tokenString("delim", "("); return L_PAREN; }
-")" { tokenString("delim", ")"); return R_PAREN; }
-"," { tokenString("delim", ","); return COMMA; }
-";" { tokenString("delim", ";"); return SEMICOLON; }
-"[" { tokenString("delim", "["); return ML_BRACE; }
-"]" { tokenString("delim", "]"); return MR_BRACE; }
-"{" { tokenString("delim", "{"); return L_BRACE; }
-"}" { tokenString("delim", "}"); return R_BRACE; }
+"(" { tokenString("delim", "("); yylval.str=strdup(yytext); return L_PAREN; }
+")" { tokenString("delim", ")"); yylval.str=strdup(yytext); return R_PAREN; }
+"," { tokenString("delim", ","); yylval.str=strdup(yytext); return COMMA; }
+";" { tokenString("delim", ";"); yylval.str=strdup(yytext); return SEMICOLON; }
+"[" { tokenString("delim", "["); yylval.str=strdup(yytext); return ML_BRACE; }
+"]" { tokenString("delim", "]"); yylval.str=strdup(yytext); return MR_BRACE; }
+"{" { tokenString("delim", "{"); yylval.str=strdup(yytext); return L_BRACE; }
+"}" { tokenString("delim", "}"); yylval.str=strdup(yytext); return R_BRACE; }
 
-"+" { token("+"); return ADD_OP; }
-"-" { token("-"); return SUB_OP; }
-"*" { token("*"); return MUL_OP; }
-"/" { token("/"); return DIV_OP; }
-"%" { token("%"); return MOD_OP; }
-"=" { token("="); return ASSIGN_OP; }
-"<" { token("<"); return LT_OP; }
-"<=" { token("<="); return LE_OP; }
-"!=" { token("!="); return NE_OP; }
-">=" { token(">="); return GE_OP; }
-">" { token(">"); return GT_OP; }
-"==" { token("=="); return EQ_OP; }
-"&&" { token("&&"); return AND_OP; }
-"||" { token("||"); return OR_OP; }
-"!"	{ token("!"); return NOT_OP; }
+"+" { token("+"); yylval.str=strdup(yytext); return ADD_OP; }
+"-" { token("-"); yylval.str=strdup(yytext); return SUB_OP; }
+"*" { token("*"); yylval.str=strdup(yytext); return MUL_OP; }
+"/" { token("/"); yylval.str=strdup(yytext); return DIV_OP; }
+"%" { token("%"); yylval.str=strdup(yytext); return MOD_OP; }
+"=" { token("="); yylval.str=strdup(yytext); return ASSIGN_OP; }
+"<" { token("<"); yylval.str=strdup(yytext); return LT_OP; }
+"<=" { token("<="); yylval.str=strdup(yytext); return LE_OP; }
+"!=" { token("!="); yylval.str=strdup(yytext); return NE_OP; }
+">=" { token(">="); yylval.str=strdup(yytext); return GE_OP; }
+">" { token(">"); yylval.str=strdup(yytext); return GT_OP; }
+"==" { token("=="); yylval.str=strdup(yytext); return EQ_OP; }
+"&&" { token("&&"); yylval.str=strdup(yytext); return AND_OP; }
+"||" { token("||"); yylval.str=strdup(yytext); return OR_OP; }
+"!"	{ token("!"); yylval.str=strdup(yytext); return NOT_OP; }
 
 "read" { tokenString("KW", yytext); return READ; }
-"boolean" { tokenString("KW", yytext); return BOOLEAN; }
+"boolean" { tokenString("KW", yytext); yylval.str = strdup("bool"); return BOOLEAN; }
 "while" { tokenString("KW", yytext); return WHILE; }
 "do" { tokenString("KW", yytext); return DO; }
 "if" { tokenString("KW", yytext); return IF; }
@@ -195,13 +224,13 @@ id *new_id();
 "true" { tokenString("KW", yytext); return TRUE; }
 "false" { tokenString("KW", yytext); return FALSE; }
 "for" { tokenString("KW", yytext); return FOR; }
-"int" { tokenString("KW", yytext); return INT; }
+"int" { tokenString("KW", yytext); yylval.str = strdup("int"); return INT; }
 "print" { tokenString("KW", yytext); return PRINT; }
-"bool" { tokenString("KW", yytext); return BOOL; }
-"void" { tokenString("KW", yytext); return VOID; }
-"float" { tokenString("KW", yytext); return FLOAT; }
-"double" { tokenString("KW", yytext); return DOUBLE; }
-"string" { tokenString("KW", yytext); return STRING; }
+"bool" { tokenString("KW", yytext); yylval.str = strdup("bool"); return BOOL; }
+"void" { tokenString("KW", yytext); yylval.str = strdup("void"); return VOID; }
+"float" { tokenString("KW", yytext); yylval.str = strdup("float"); return FLOAT; }
+"double" { tokenString("KW", yytext); yylval.str = strdup("double"); return DOUBLE; }
+"string" { tokenString("KW", yytext); yylval.str = strdup("string"); return STRING; }
 "continue" { tokenString("KW", yytext); return CONTINUE; }
 "break" { tokenString("KW", yytext); return BREAK; }
 "return" { tokenString("KW", yytext); return RETURN; }
@@ -210,16 +239,19 @@ id *new_id();
 -?0 |
 [1-9][0-9]* {
     tokenString("integer", yytext);
+    yylval.inum = atoi(yytext);
     return INT_CONST;
 }
 
 -?[0-9]+\.[0-9]+ {
     tokenString("float", yytext);
+    yylval.dnum = atof(yytext);
     return FLOAT_CONST;
 }
 
 -?([0-9]+|([0-9]*\.[0-9]+))([eE][-+]?[0-9]+) {
     tokenString("scientific", yytext);
+    yylval.str = strdup(yytext);
     return SCIENTIFIC;
 }
 
@@ -260,8 +292,8 @@ id *new_id();
 
 <STR_ESCAPE>[^\"nt\\] {
     LIST;
-    strcat( strContent, "\\");
-    strcat( strContent, yytext);
+    strcat(strContent, "\\");
+    strcat(strContent, yytext);
     BEGIN STR;
 }
 
@@ -273,6 +305,7 @@ id *new_id();
 <STR>\" {
     //LIST;
     //strcat(buf, "\"");
+    yylval.str = strdup(strContent);
     if (Opt_Token)
         tokenString("string", strContent);
     BEGIN INITIAL;
@@ -319,10 +352,22 @@ id *new_id();
 }
 
 [a-zA-Z_][a-zA-Z0-9_]{0,255} {
-    if (Opt_Statistic) {
-        set(&id_head, yytext);
+    char *idname;
+    if (strlen(yytext) >= 32) {
+        idname = (char*) malloc(sizeof(char) * 33);
+        strncpy(idname, yytext, 32);
+        idname[32] = '\0';
     }
-    tokenString("id", yytext); return ID;
+    else {
+        idname = strdup(yytext);
+    }
+    yylval.str = idname;
+
+    if (Opt_Statistic) {
+        set(&id_head, idname);
+    }
+    tokenString("id", idname);
+    return ID;
 }
 
 . {
