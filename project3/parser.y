@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include "symbolTable.h"
 
+// from scanner.l
 extern int linenum;
 extern FILE *yyin;
 extern char *yytext;
@@ -327,7 +328,7 @@ scalar_type : INT    { $$ = CreateType($1, NULL); }
 literal_const : INT_CONST   { $$ = CreateValue("int", yytext); }
               | FLOAT_CONST { $$ = CreateValue("float", yytext); }
               | SCIENTIFIC  { $$ = CreateValue("scientific", yytext); }
-              | STR_CONST   { $$ = CreateValue("string", yytext); }
+              | STR_CONST   { $$ = CreateValue("string", $1); }
               | TRUE        { $$ = CreateValue("bool", yytext); }
               | FALSE       { $$ = CreateValue("bool", yytext); }
               ;

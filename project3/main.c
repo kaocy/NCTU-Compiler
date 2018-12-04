@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "symbolTable.h"
 
+// from parser.y
 extern int yyparse();
 extern FILE* yyin;
 extern SymbolTable *table;

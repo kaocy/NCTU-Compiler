@@ -77,6 +77,15 @@ void PrintAttribute(Attribute *attr) {
     }
 }
 
+SymbolTableEntry *FindEntry(SymbolTable *table, const char *name) {
+    SymbolTableEntry *entry = table->entry_head;
+    while (entry != NULL) {
+        if (strcmp(entry->name, name) == 0) return entry;
+        entry = entry->next;
+    }
+    return NULL;
+}
+
 SymbolTable* InsertTable(SymbolTable *last, int level) {
     SymbolTable *table = (SymbolTable*) malloc(sizeof(SymbolTable));
     table->size = 0;
@@ -91,6 +100,12 @@ SymbolTable* InsertTable(SymbolTable *last, int level) {
 
 SymbolTableEntry *InsertEntryFromId(SymbolTable *table, IdList *idlist, char *kind, Type *type) {
     while (idlist != NULL) {
+        if (FindEntry(table, idlist->name) != NULL) {
+            printf("Error at Line #%d: '%s' is redeclared.\n", linenum, idlist->name);
+            idlist = idlist->next;
+            continue;
+        }
+
         SymbolTableEntry *entry = (SymbolTableEntry*) malloc(sizeof(SymbolTableEntry));
         strcpy(entry->name, idlist->name);
         strcpy(entry->kind, kind);

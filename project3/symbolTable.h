@@ -1,5 +1,7 @@
 
+// from scanner.l
 extern int Opt_Symbol;
+extern int linenum;
 
 typedef struct SymbolTable SymbolTable;
 typedef struct SymbolTableEntry SymbolTableEntry;
@@ -64,6 +66,7 @@ void PrintEntry(SymbolTableEntry*);
 void PrintLevel(int);
 void PrintType(Type*);
 void PrintAttribute(Attribute*);
+SymbolTableEntry *FindEntry(SymbolTable*, const char*);
 SymbolTable* InsertTable(SymbolTable*, int);
 SymbolTableEntry *InsertEntryFromId(SymbolTable*, IdList*, char*, Type*);
 IdList *InsertIdList(IdList*, char*, ArraySignature*, Value*);

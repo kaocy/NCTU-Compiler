@@ -305,9 +305,8 @@ id *new_id();
 <STR>\" {
     //LIST;
     //strcat(buf, "\"");
+    tokenString("string", strContent);
     yylval.str = strdup(strContent);
-    if (Opt_Token)
-        tokenString("string", strContent);
     BEGIN INITIAL;
     return STR_CONST;
 }
