@@ -161,7 +161,8 @@ SymbolTableEntry *InsertEntryFromParameter(SymbolTable *table, ParameterList *pa
         strcpy(entry->name, parameterlist->name);
         strcpy(entry->kind, "parameter");
         entry->level = table->level;
-        entry->type = parameterlist->type;
+        // entry->type = parameterlist->type;
+        entry->type = CopyType(parameterlist->type);
         entry->attribute = CreateAttribute(NULL, NULL);
 
         entry->prev = table->entry_tail;
@@ -328,19 +329,25 @@ void DeleteParameterList(ParameterList *head) {
     }
 }
 
-// Type *CopyType(Type *type) {
-//     Type *copy = (Type*) malloc(sizeof(Type));
-//     strcpy(copy->name, type->name);
+Type *CopyType(Type *type) {
+    Type *copy = (Type*) malloc(sizeof(Type));
+    strcpy(copy->name, type->name);
 
-//     ArraySignature *array_signature = NULL;
-//     ArraySignature *cur = type->array_signature;
-//     while (cur != NULL) {
-//         array_signature = InsertArraySignature(array_signature, cur->size);
-//         cur = cur->next;
-//     }
-//     copy->array_signature = array_signature;
-//     return copy;
-// }
+    ArraySignature *head = NULL, *tail = NULL;
+    ArraySignature *cur = type->array_signature;
+
+    if (cur != NULL) {
+        head = tail = InsertArraySignature(tail, cur->size);
+        cur = cur->next;
+    }
+
+    while (cur != NULL) {
+        tail = InsertArraySignature(tail, cur->size);
+        cur = cur->next;
+    }
+    copy->array_signature = head;
+    return copy;
+}
 
 Type *CreateType(const char *typename, ArraySignature *array_signature) {
     Type *type = (Type*) malloc(sizeof(Type));

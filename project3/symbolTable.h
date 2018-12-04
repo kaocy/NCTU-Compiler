@@ -6,11 +6,11 @@ extern int linenum;
 typedef struct SymbolTable SymbolTable;
 typedef struct SymbolTableEntry SymbolTableEntry;
 typedef struct Type Type;
-typedef struct ParameterList ParameterList;
 typedef struct Attribute Attribute;
 typedef struct ArraySignature ArraySignature;
 typedef struct Value Value;
 typedef struct IdList IdList;
+typedef struct ParameterList ParameterList;
 
 struct SymbolTable {
     int size, level;
@@ -81,7 +81,7 @@ void DeleteType(Type*);
 void DeleteAttribute(Attribute*);
 void DeleteIdList(IdList*);
 void DeleteParameterList(ParameterList*);
-// Type *CopyType(Type*);
+Type *CopyType(Type*);
 Type *CreateType(const char*, ArraySignature*);
 Attribute *CreateAttribute(ParameterList*, Value*);
 Value *CreateValue(const char*, char*);

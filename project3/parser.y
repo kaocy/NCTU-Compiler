@@ -24,7 +24,6 @@ ArraySignature *arraylist_head, *arraylist_tail;
     char* str;
     struct Type* type;
     struct Value* value;
-    struct Attribute* attribute;
 }
 
 %token <str> ID
@@ -110,23 +109,26 @@ decl_and_def_list : decl_and_def_list var_decl
                   ;
 
 funct_decl : scalar_type ID L_PAREN R_PAREN SEMICOLON {
-                 InsertEntryFromFunction(table, NULL, $2, $1->name);
+                 table->entry_tail = InsertEntryFromFunction(table, NULL, $2, $1->name);
+                 DeleteType($1);
              }
            | scalar_type ID L_PAREN parameter_list R_PAREN SEMICOLON {
-                 InsertEntryFromFunction(table, parameterlist_head, $2, $1->name);
+                 table->entry_tail = InsertEntryFromFunction(table, parameterlist_head, $2, $1->name);
+                 DeleteType($1);
                  parameterlist_head = parameterlist_tail = NULL;
              }
            | VOID ID L_PAREN R_PAREN SEMICOLON {
-                 InsertEntryFromFunction(table, NULL, $2, "void");
+                 table->entry_tail = InsertEntryFromFunction(table, NULL, $2, "void");
              }
            | VOID ID L_PAREN parameter_list R_PAREN SEMICOLON {
-                 InsertEntryFromFunction(table, parameterlist_head, $2, "void");
+                 table->entry_tail = InsertEntryFromFunction(table, parameterlist_head, $2, "void");
                  parameterlist_head = parameterlist_tail = NULL;
              }
            ;
 
 funct_def : scalar_type ID L_PAREN R_PAREN L_BRACE {
-                InsertEntryFromFunction(table, NULL, $2, $1->name);
+                table->entry_tail = InsertEntryFromFunction(table, NULL, $2, $1->name);
+                DeleteType($1);
                 table = InsertTable(table, table->level + 1);
             }
             var_const_stmt_list R_BRACE {
@@ -136,9 +138,10 @@ funct_def : scalar_type ID L_PAREN R_PAREN L_BRACE {
                 table->next = NULL;
             }
           | scalar_type ID L_PAREN parameter_list R_PAREN L_BRACE {
-                InsertEntryFromFunction(table, parameterlist_head, $2, $1->name);
+                table->entry_tail = InsertEntryFromFunction(table, parameterlist_head, $2, $1->name);
+                DeleteType($1);
                 table = InsertTable(table, table->level + 1);
-                InsertEntryFromParameter(table, parameterlist_head);
+                table->entry_tail = InsertEntryFromParameter(table, parameterlist_head);
                 parameterlist_head = parameterlist_tail = NULL;
             }
             var_const_stmt_list R_BRACE {
@@ -148,7 +151,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN L_BRACE {
                 table->next = NULL;
             }
           | VOID ID L_PAREN R_PAREN L_BRACE {
-                InsertEntryFromFunction(table, NULL, $2, "void");
+                table->entry_tail = InsertEntryFromFunction(table, NULL, $2, "void");
                 table = InsertTable(table, table->level + 1);
             }
             var_const_stmt_list R_BRACE {
@@ -158,9 +161,9 @@ funct_def : scalar_type ID L_PAREN R_PAREN L_BRACE {
                 table->next = NULL;
             }
           | VOID ID L_PAREN parameter_list R_PAREN L_BRACE {
-                InsertEntryFromFunction(table, parameterlist_head, $2, "void");
+                table->entry_tail = InsertEntryFromFunction(table, parameterlist_head, $2, "void");
                 table = InsertTable(table, table->level + 1);
-                InsertEntryFromParameter(table, parameterlist_head);
+                table->entry_tail = InsertEntryFromParameter(table, parameterlist_head);
                 parameterlist_head = parameterlist_tail = NULL;
             }
             var_const_stmt_list R_BRACE {
