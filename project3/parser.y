@@ -14,6 +14,7 @@ int yyerror(char *msg);
 
 SymbolTable *table;
 IdList *idlist_head, *idlist_tail;
+ParameterList *parameterlist_head, *parameterlist_tail;
 ArraySignature *arraylist_head, *arraylist_tail;
 %}
 
@@ -108,13 +109,24 @@ decl_and_def_list : decl_and_def_list var_decl
                   |
                   ;
 
-funct_decl : scalar_type ID L_PAREN R_PAREN SEMICOLON
-           | scalar_type ID L_PAREN parameter_list R_PAREN SEMICOLON
-           | VOID ID L_PAREN R_PAREN SEMICOLON
-           | VOID ID L_PAREN parameter_list R_PAREN SEMICOLON
+funct_decl : scalar_type ID L_PAREN R_PAREN SEMICOLON {
+                 InsertEntryFromFunction(table, NULL, $2, $1->name);
+             }
+           | scalar_type ID L_PAREN parameter_list R_PAREN SEMICOLON {
+                 InsertEntryFromFunction(table, parameterlist_head, $2, $1->name);
+                 parameterlist_head = parameterlist_tail = NULL;
+             }
+           | VOID ID L_PAREN R_PAREN SEMICOLON {
+                 InsertEntryFromFunction(table, NULL, $2, "void");
+             }
+           | VOID ID L_PAREN parameter_list R_PAREN SEMICOLON {
+                 InsertEntryFromFunction(table, parameterlist_head, $2, "void");
+                 parameterlist_head = parameterlist_tail = NULL;
+             }
            ;
 
 funct_def : scalar_type ID L_PAREN R_PAREN L_BRACE {
+                InsertEntryFromFunction(table, NULL, $2, $1->name);
                 table = InsertTable(table, table->level + 1);
             }
             var_const_stmt_list R_BRACE {
@@ -124,7 +136,10 @@ funct_def : scalar_type ID L_PAREN R_PAREN L_BRACE {
                 table->next = NULL;
             }
           | scalar_type ID L_PAREN parameter_list R_PAREN L_BRACE {
+                InsertEntryFromFunction(table, parameterlist_head, $2, $1->name);
                 table = InsertTable(table, table->level + 1);
+                InsertEntryFromParameter(table, parameterlist_head);
+                parameterlist_head = parameterlist_tail = NULL;
             }
             var_const_stmt_list R_BRACE {
                 PrintTable(table);
@@ -133,6 +148,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN L_BRACE {
                 table->next = NULL;
             }
           | VOID ID L_PAREN R_PAREN L_BRACE {
+                InsertEntryFromFunction(table, NULL, $2, "void");
                 table = InsertTable(table, table->level + 1);
             }
             var_const_stmt_list R_BRACE {
@@ -142,7 +158,10 @@ funct_def : scalar_type ID L_PAREN R_PAREN L_BRACE {
                 table->next = NULL;
             }
           | VOID ID L_PAREN parameter_list R_PAREN L_BRACE {
+                InsertEntryFromFunction(table, parameterlist_head, $2, "void");
                 table = InsertTable(table, table->level + 1);
+                InsertEntryFromParameter(table, parameterlist_head);
+                parameterlist_head = parameterlist_tail = NULL;
             }
             var_const_stmt_list R_BRACE {
                 PrintTable(table);
@@ -152,10 +171,20 @@ funct_def : scalar_type ID L_PAREN R_PAREN L_BRACE {
             }
           ;
 
-parameter_list : parameter_list COMMA scalar_type ID
-               | parameter_list COMMA scalar_type array_decl
-               | scalar_type array_decl
-               | scalar_type ID
+parameter_list : parameter_list COMMA scalar_type ID {
+                     parameterlist_tail = InsertParameterList(parameterlist_tail, $3, $4, NULL);
+                 }
+               | parameter_list COMMA scalar_type array_decl {
+                     parameterlist_tail = InsertParameterList(parameterlist_tail, $3, $4, arraylist_head);
+                     arraylist_head = arraylist_tail = NULL;
+                 }
+               | scalar_type ID {
+                     parameterlist_head = parameterlist_tail = InsertParameterList(parameterlist_tail, $1, $2, NULL);
+                 }
+               | scalar_type array_decl {
+                     parameterlist_head = parameterlist_tail = InsertParameterList(parameterlist_tail, $1, $2, arraylist_head);
+                     arraylist_head = arraylist_tail = NULL;
+                 }
                ;
 
 /*************** Data Types and Declarations ***************/

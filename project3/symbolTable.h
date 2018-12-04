@@ -6,7 +6,7 @@ extern int linenum;
 typedef struct SymbolTable SymbolTable;
 typedef struct SymbolTableEntry SymbolTableEntry;
 typedef struct Type Type;
-typedef struct TypeList TypeList;
+typedef struct ParameterList ParameterList;
 typedef struct Attribute Attribute;
 typedef struct ArraySignature ArraySignature;
 typedef struct Value Value;
@@ -32,13 +32,8 @@ struct Type {
     ArraySignature *array_signature;
 };
 
-struct TypeList {
-    Type *type;
-    TypeList *prev, *next;
-};
-
 struct Attribute {
-    TypeList *typelist; // for function parameters
+    ParameterList *parameterlist; // for function parameters
     Value *value;
 };
 
@@ -61,6 +56,12 @@ struct IdList {
     IdList *prev, *next;
 };
 
+struct ParameterList {
+    Type *type;
+    char *name;
+    ParameterList *prev, *next;
+};
+
 void PrintTable(SymbolTable*);
 void PrintEntry(SymbolTableEntry*);
 void PrintLevel(int);
@@ -69,13 +70,18 @@ void PrintAttribute(Attribute*);
 SymbolTableEntry *FindEntry(SymbolTable*, const char*);
 SymbolTable* InsertTable(SymbolTable*, int);
 SymbolTableEntry *InsertEntryFromId(SymbolTable*, IdList*, char*, Type*);
+SymbolTableEntry *InsertEntryFromParameter(SymbolTable*, ParameterList*);
+SymbolTableEntry *InsertEntryFromFunction(SymbolTable*, ParameterList*, char*, char*);
 IdList *InsertIdList(IdList*, char*, ArraySignature*, Value*);
+ParameterList *InsertParameterList(ParameterList*, Type*, char*, ArraySignature*);
 ArraySignature *InsertArraySignature(ArraySignature*, const int);
 void DeleteTable(SymbolTable*);
 void DeleteEntry(SymbolTableEntry*);
 void DeleteType(Type*);
 void DeleteAttribute(Attribute*);
 void DeleteIdList(IdList*);
+void DeleteParameterList(ParameterList*);
+// Type *CopyType(Type*);
 Type *CreateType(const char*, ArraySignature*);
-Attribute *CreateAttribute(TypeList*, Value*);
+Attribute *CreateAttribute(ParameterList*, Value*);
 Value *CreateValue(const char*, char*);

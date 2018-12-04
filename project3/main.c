@@ -7,11 +7,13 @@ extern int yyparse();
 extern FILE* yyin;
 extern SymbolTable *table;
 extern IdList *idlist_head, *idlist_tail;
+extern ParameterList *parameterlist_head, *parameterlist_tail;
 extern ArraySignature *arraylist_head, *arraylist_tail;
 
 int main(int argc, char **argv) {
     table = InsertTable(NULL, 0);
     idlist_head = idlist_tail = NULL;
+    parameterlist_head = parameterlist_tail = NULL;
     arraylist_head = arraylist_tail = NULL;
 
     if (argc == 1) {

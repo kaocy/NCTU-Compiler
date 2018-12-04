@@ -12,7 +12,6 @@ void PrintTable(SymbolTable *table) {
     
     SymbolTableEntry *cur = table->entry_head;
     while (cur != NULL) {
-        //printf("print table\n");
         PrintEntry(cur);
         cur = cur->next;
     }
@@ -21,7 +20,6 @@ void PrintTable(SymbolTable *table) {
 }
 
 void PrintEntry(SymbolTableEntry *entry) {
-    //printf("print entry\n");
     printf("%-33s%-11s", entry->name, entry->kind);
     PrintLevel(entry->level);
     PrintType(entry->type);
@@ -71,9 +69,30 @@ void PrintAttribute(Attribute *attr) {
         else if (strcmp(attr->value->type->name, "bool") == 0) {
             printf("%-24s", attr->value->svalue);
         }
+        return ;
     }
-    else if (attr->typelist != NULL) {
 
+    int count = 0;
+    ParameterList *parameterlist = attr->parameterlist;
+    while (parameterlist != NULL) {
+        char str_type[20];
+        strcpy(str_type, parameterlist->type->name);
+
+        ArraySignature *cur = parameterlist->type->array_signature;
+        while (cur != NULL) {
+            char size[20];
+            sprintf(size, "%d", cur->size);
+            strcat(str_type, "[");
+            strcat(str_type, size);
+            strcat(str_type, "]");
+            cur = cur->next;
+        }
+
+        if (count > 0)  printf(",");
+        printf("%s", str_type);
+
+        parameterlist = parameterlist->next;
+        count++;
     }
 }
 
@@ -112,6 +131,7 @@ SymbolTableEntry *InsertEntryFromId(SymbolTable *table, IdList *idlist, char *ki
         entry->level = table->level;
         entry->type = CreateType(type->name, idlist->array_signature);
         entry->attribute = CreateAttribute(NULL, idlist->value);
+
         entry->prev = table->entry_tail;
         entry->next = NULL;
 
@@ -129,6 +149,68 @@ SymbolTableEntry *InsertEntryFromId(SymbolTable *table, IdList *idlist, char *ki
     return table->entry_tail;
 }
 
+SymbolTableEntry *InsertEntryFromParameter(SymbolTable *table, ParameterList *parameterlist) {
+    while (parameterlist != NULL) {
+        if (FindEntry(table, parameterlist->name) != NULL) {
+            printf("Error at Line #%d: '%s' is redeclared.\n", linenum, parameterlist->name);
+            parameterlist = parameterlist->next;
+            continue;
+        }
+
+        SymbolTableEntry *entry = (SymbolTableEntry*) malloc(sizeof(SymbolTableEntry));
+        strcpy(entry->name, parameterlist->name);
+        strcpy(entry->kind, "parameter");
+        entry->level = table->level;
+        entry->type = parameterlist->type;
+        entry->attribute = CreateAttribute(NULL, NULL);
+
+        entry->prev = table->entry_tail;
+        entry->next = NULL;
+
+        if (table->entry_tail == NULL) {
+            table->entry_head = table->entry_tail = entry;
+        }
+        else {
+            table->entry_tail->next = entry;
+            table->entry_tail = table->entry_tail->next;
+        }
+
+        table->size++;
+        parameterlist = parameterlist->next;
+    }
+    return table->entry_tail;
+}
+
+SymbolTableEntry *InsertEntryFromFunction(SymbolTable *table, ParameterList *parameterlist, char *name, char *typename) {
+    if (FindEntry(table, name) != NULL) {
+        // printf("Error at Line #%d: '%s' is redeclared.\n", linenum, name);
+        return table->entry_tail;
+    }
+
+    SymbolTableEntry *entry = (SymbolTableEntry*) malloc(sizeof(SymbolTableEntry));
+    strcpy(entry->name, name);
+    strcpy(entry->kind, "function");
+    entry->level = table->level;
+    entry->type = CreateType(typename, NULL);
+    entry->attribute = CreateAttribute(parameterlist, NULL);
+
+    // printf("%s\n", parameterlist->type->name);
+
+    entry->prev = table->entry_tail;
+    entry->next = NULL;
+    table->size++;
+
+    if (table->entry_tail == NULL) {
+        table->entry_head = table->entry_tail = entry;
+    }
+    else {
+        table->entry_tail->next = entry;
+        table->entry_tail = table->entry_tail->next;
+    }
+
+    return table->entry_tail;
+}
+
 IdList *InsertIdList(IdList *last, char *name, ArraySignature *array_signature, Value *value) {
     IdList *list = (IdList*) malloc(sizeof(IdList));
     list->name = strdup(name);
@@ -139,6 +221,18 @@ IdList *InsertIdList(IdList *last, char *name, ArraySignature *array_signature, 
 
     if (last != NULL)   last->next = list;
     return list;
+}
+
+ParameterList *InsertParameterList(ParameterList *last, Type *type, char *name, ArraySignature *array_signature) {
+    ParameterList *parameterlist = (ParameterList*) malloc(sizeof(ParameterList));
+    type->array_signature = array_signature;
+    parameterlist->type = type;
+    parameterlist->name = strdup(name);
+    parameterlist->prev = last;
+    parameterlist->next = NULL;
+
+    if (last != NULL)   last->next = parameterlist;
+    return parameterlist;
 }
 
 ArraySignature *InsertArraySignature(ArraySignature *last, const int size) {
@@ -193,9 +287,10 @@ void DeleteAttribute(Attribute *attr) {
             free(attr->value->svalue);
         free(attr->value);
     }
-    else if (attr->typelist != NULL) {
 
-    }
+    if (attr->parameterlist != NULL)
+        free(attr->parameterlist);
+
     free(attr);
 }
 
@@ -215,6 +310,38 @@ void DeleteIdList(IdList *head) {
     }
 }
 
+void DeleteParameterList(ParameterList *head) {
+    while (head != NULL) {
+        if (head->next == NULL) {
+            DeleteType(head->type);
+            free(head->name);
+            free(head);
+            head = NULL;
+        }
+        else {
+            head = head->next;
+            DeleteType(head->prev->type);
+            free(head->prev->name);
+            free(head->prev);
+            head->prev = NULL;
+        }
+    }
+}
+
+// Type *CopyType(Type *type) {
+//     Type *copy = (Type*) malloc(sizeof(Type));
+//     strcpy(copy->name, type->name);
+
+//     ArraySignature *array_signature = NULL;
+//     ArraySignature *cur = type->array_signature;
+//     while (cur != NULL) {
+//         array_signature = InsertArraySignature(array_signature, cur->size);
+//         cur = cur->next;
+//     }
+//     copy->array_signature = array_signature;
+//     return copy;
+// }
+
 Type *CreateType(const char *typename, ArraySignature *array_signature) {
     Type *type = (Type*) malloc(sizeof(Type));
     strcpy(type->name, typename);
@@ -222,9 +349,9 @@ Type *CreateType(const char *typename, ArraySignature *array_signature) {
     return type;
 }
 
-Attribute *CreateAttribute(TypeList *typelist, Value *value) {
+Attribute *CreateAttribute(ParameterList *parameterlist, Value *value) {
     Attribute *attribute = (Attribute*) malloc(sizeof(Attribute));
-    attribute->typelist = typelist;
+    attribute->parameterlist = parameterlist;
     attribute->value = value;
     return attribute;
 }
