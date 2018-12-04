@@ -1,10 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "symbolTable.h"
 
 extern int yyparse();
 extern FILE* yyin;
+extern SymbolTable *table;
+extern IdList *idlist_head, *idlist_tail;
+extern ArraySignature *arraylist_head, *arraylist_tail;
 
 int main(int argc, char **argv) {
+    table = InsertTable(NULL, 0);
+    idlist_head = idlist_tail = NULL;
+    arraylist_head = arraylist_tail = NULL;
 
     if (argc == 1) {
         yyin = stdin;

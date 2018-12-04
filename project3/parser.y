@@ -1,6 +1,7 @@
 %{
 #include <stdio.h>
 #include <stdlib.h>
+#include "symbolTable.h"
 
 extern int linenum;
 extern FILE *yyin;
@@ -9,77 +10,88 @@ extern char buf[256];
 
 int yylex();
 int yyerror(char *msg);
+
+SymbolTable *table;
+IdList *idlist_head, *idlist_tail;
+ArraySignature *arraylist_head, *arraylist_tail;
 %}
 
-%token  ID
-%token  INT_CONST
-%token  FLOAT_CONST
-%token  SCIENTIFIC
-%token  STR_CONST
+%union {
+    int inum;
+    double dnum;
+    char* str;
+    struct Type* type;
+    struct Value* value;
+    struct Attribute* attribute;
+}
 
-%token  LE_OP
-%token  NE_OP
-%token  GE_OP
-%token  EQ_OP
-%token  AND_OP
-%token  OR_OP
+%token <str> ID
+%token <inum> INT_CONST
+%token <dnum> FLOAT_CONST
+%token <str> SCIENTIFIC
+%token <str> STR_CONST
 
-%token  READ
-%token  BOOLEAN
-%token  WHILE
-%token  DO
-%token  IF
-%token  ELSE
-%token  TRUE
-%token  FALSE
-%token  FOR
-%token  INT
-%token  PRINT
-%token  BOOL
-%token  VOID
-%token  FLOAT
-%token  DOUBLE
-%token  STRING
-%token  CONTINUE
-%token  BREAK
-%token  RETURN
-%token  CONST
+%token <str> LE_OP
+%token <str> NE_OP
+%token <str> GE_OP
+%token <str> EQ_OP
+%token <str> AND_OP
+%token <str> OR_OP
 
-%token  L_PAREN
-%token  R_PAREN
-%token  COMMA
-%token  SEMICOLON
-%token  ML_BRACE
-%token  MR_BRACE
-%token  L_BRACE
-%token  R_BRACE
-%token  ADD_OP
-%token  SUB_OP
-%token  MUL_OP
-%token  DIV_OP
-%token  MOD_OP
-%token  ASSIGN_OP
-%token  LT_OP
-%token  GT_OP
-%token  NOT_OP
+%token <str> READ
+%token <str> BOOLEAN
+%token <str> WHILE
+%token <str> DO
+%token <str> IF
+%token <str> ELSE
+%token <str> TRUE
+%token <str> FALSE
+%token <str> FOR
+%token <str> INT
+%token <str> PRINT
+%token <str> BOOL
+%token <str> VOID
+%token <str> FLOAT
+%token <str> DOUBLE
+%token <str> STRING
+%token <str> CONTINUE
+%token <str> BREAK
+%token <str> RETURN
+%token <str> CONST
 
-/*  Program 
-    Function 
-    Array 
-    Const 
-    IF 
-    ELSE 
-    RETURN 
-    FOR 
-    WHILE
-*/
+%token <str> L_PAREN
+%token <str> R_PAREN
+%token <str> COMMA
+%token <str> SEMICOLON
+%token <str> ML_BRACE
+%token <str> MR_BRACE
+%token <str> L_BRACE
+%token <str> R_BRACE
+%token <str> ADD_OP
+%token <str> SUB_OP
+%token <str> MUL_OP
+%token <str> DIV_OP
+%token <str> MOD_OP
+%token <str> ASSIGN_OP
+%token <str> LT_OP
+%token <str> GT_OP
+%token <str> NOT_OP
+
+%type <type> scalar_type
+%type <value> literal_const
+%type <str> array_decl
+
 %start program
 
 %%
 
 /********************** Program Units **********************/
 
-program : decl_list funct_def decl_and_def_list
+program : decl_list funct_def decl_and_def_list { 
+              PrintTable(table);
+              DeleteTable(table);
+              table = NULL; 
+          }
         ;
 
 decl_list : decl_list var_decl
@@ -101,10 +113,42 @@ funct_decl : scalar_type ID L_PAREN R_PAREN SEMICOLON
            | VOID ID L_PAREN parameter_list R_PAREN SEMICOLON
            ;
 
-funct_def : scalar_type ID L_PAREN R_PAREN compound_statement
-          | scalar_type ID L_PAREN parameter_list R_PAREN  compound_statement
-          | VOID ID L_PAREN R_PAREN compound_statement
-          | VOID ID L_PAREN parameter_list R_PAREN compound_statement
+funct_def : scalar_type ID L_PAREN R_PAREN L_BRACE {
+                table = InsertTable(table, table->level + 1);
+            }
+            var_const_stmt_list R_BRACE {
+                PrintTable(table);
+                table = table->prev;
+                DeleteTable(table->next);
+                table->next = NULL;
+            }
+          | scalar_type ID L_PAREN parameter_list R_PAREN L_BRACE {
+                table = InsertTable(table, table->level + 1);
+            }
+            var_const_stmt_list R_BRACE {
+                PrintTable(table);
+                table = table->prev;
+                DeleteTable(table->next);
+                table->next = NULL;
+            }
+          | VOID ID L_PAREN R_PAREN L_BRACE {
+                table = InsertTable(table, table->level + 1);
+            }
+            var_const_stmt_list R_BRACE {
+                PrintTable(table);
+                table = table->prev;
+                DeleteTable(table->next);
+                table->next = NULL;
+            }
+          | VOID ID L_PAREN parameter_list R_PAREN L_BRACE {
+                table = InsertTable(table, table->level + 1);
+            }
+            var_const_stmt_list R_BRACE {
+                PrintTable(table);
+                table = table->prev;
+                DeleteTable(table->next);
+                table->next = NULL;
+            }
           ;
 
 parameter_list : parameter_list COMMA scalar_type ID
@@ -115,24 +159,53 @@ parameter_list : parameter_list COMMA scalar_type ID
 
 /*************** Data Types and Declarations ***************/
 
-var_decl : scalar_type identifier_list SEMICOLON
+var_decl : scalar_type identifier_list SEMICOLON {
+               table->entry_tail = InsertEntryFromId(table, idlist_head, "variable", $1);
+               DeleteType($1);
+               DeleteIdList(idlist_head);
+               idlist_head = idlist_tail = NULL;
+           }
          ;
 
-identifier_list : identifier_list COMMA ID
-                | identifier_list COMMA ID ASSIGN_OP logical_expression
-                | identifier_list COMMA array_decl ASSIGN_OP initial_array
-                | identifier_list COMMA array_decl
-                | array_decl ASSIGN_OP initial_array
-                | array_decl
-                | ID ASSIGN_OP logical_expression
-                | ID
+identifier_list : identifier_list COMMA ID {
+                      idlist_tail = InsertIdList(idlist_tail, $3, NULL, NULL);
+                  }
+                | identifier_list COMMA ID ASSIGN_OP logical_expression {
+                      idlist_tail = InsertIdList(idlist_tail, $3, NULL, NULL);
+                  }
+                | identifier_list COMMA array_decl ASSIGN_OP initial_array {
+                      idlist_tail = InsertIdList(idlist_tail, $3, arraylist_head, NULL);
+                      arraylist_head = arraylist_tail = NULL;
+                  }
+                | identifier_list COMMA array_decl {
+                      idlist_tail = InsertIdList(idlist_tail, $3, arraylist_head, NULL);
+                      arraylist_head = arraylist_tail = NULL;
+                  }
+                | ID ASSIGN_OP logical_expression {
+                      idlist_head = idlist_tail = InsertIdList(idlist_tail, $1, NULL, NULL);
+                  }
+                | ID {
+                      idlist_head = idlist_tail = InsertIdList(idlist_tail, $1, NULL, NULL);
+                  }
+                | array_decl ASSIGN_OP initial_array {
+                      idlist_head = idlist_tail = InsertIdList(idlist_tail, $1, arraylist_head, NULL);
+                      arraylist_head = arraylist_tail = NULL;
+                  }
+                | array_decl {
+                      idlist_head = idlist_tail = InsertIdList(idlist_tail, $1, arraylist_head, NULL);
+                      arraylist_head = arraylist_tail = NULL;
+                  }
                 ;
 
-array_decl : ID dim
+array_decl : ID dim { $$ = $1; }
            ;
 
-dim : dim ML_BRACE INT_CONST MR_BRACE
-    | ML_BRACE INT_CONST MR_BRACE
+dim : dim ML_BRACE INT_CONST MR_BRACE {
+          arraylist_tail = InsertArraySignature(arraylist_tail, $3);
+      }
+    | ML_BRACE INT_CONST MR_BRACE {
+          arraylist_head = arraylist_tail = InsertArraySignature(arraylist_tail, $2);
+      }
     ;
 
 initial_array : L_BRACE literal_list R_BRACE
@@ -143,10 +216,20 @@ literal_list : literal_list COMMA logical_expression
              |
              ;
 
-const_decl : CONST scalar_type const_list SEMICOLON;
+const_decl : CONST scalar_type const_list SEMICOLON {
+                 table->entry_tail = InsertEntryFromId(table, idlist_head, "constant", $2);
+                 DeleteType($2);
+                 DeleteIdList(idlist_head);
+                 idlist_head = idlist_tail = NULL;
+             }
+           ;
 
-const_list : const_list COMMA ID ASSIGN_OP literal_const
-           | ID ASSIGN_OP literal_const
+const_list : const_list COMMA ID ASSIGN_OP literal_const {
+                 idlist_tail = InsertIdList(idlist_tail, $3, NULL, $5);
+             }
+           | ID ASSIGN_OP literal_const {
+                 idlist_head = idlist_tail = InsertIdList(idlist_tail, $1, NULL, $3);
+             }
            ;
 
 /*********************** Statements ***********************/
@@ -160,7 +243,13 @@ statement : compound_statement
           | jump_statement
           ;
 
-compound_statement : L_BRACE var_const_stmt_list R_BRACE
+compound_statement : L_BRACE { table = InsertTable(table, table->level + 1); }
+                     var_const_stmt_list R_BRACE {
+                         PrintTable(table);
+                         table = table->prev;
+                         DeleteTable(table->next);
+                         table->next = NULL;
+                     }
                    ;
 
 var_const_stmt_list : var_const_stmt_list statement
@@ -174,22 +263,18 @@ simple_statement : variable_reference ASSIGN_OP logical_expression SEMICOLON
                  | READ variable_reference SEMICOLON
                  ;
 
-conditional_statement : IF L_PAREN logical_expression R_PAREN L_BRACE var_const_stmt_list R_BRACE
-                      | IF L_PAREN logical_expression R_PAREN
-                            L_BRACE var_const_stmt_list R_BRACE
-                        ELSE
-                            L_BRACE var_const_stmt_list R_BRACE
+conditional_statement : IF L_PAREN logical_expression R_PAREN compound_statement
+                      | IF L_PAREN logical_expression R_PAREN compound_statement
+                        ELSE compound_statement
                       ;
 
-while_statement : WHILE L_PAREN logical_expression R_PAREN
-                    L_BRACE var_const_stmt_list R_BRACE
-                | DO L_BRACE
-                    var_const_stmt_list
-                  R_BRACE WHILE L_PAREN logical_expression R_PAREN SEMICOLON
+while_statement : WHILE L_PAREN logical_expression R_PAREN compound_statement
+                | DO compound_statement
+                  WHILE L_PAREN logical_expression R_PAREN SEMICOLON
                 ;
 
 for_statement : FOR L_PAREN initial_expression_list SEMICOLON control_expression_list SEMICOLON increment_expression_list R_PAREN
-                    L_BRACE var_const_stmt_list R_BRACE
+                    compound_statement
               ;
 
 initial_expression_list : initial_expression
@@ -232,19 +317,19 @@ jump_statement : CONTINUE SEMICOLON
 
 /************************ Utilities ************************/
 
-scalar_type : INT
-            | DOUBLE
-            | STRING
-            | BOOL
-            | FLOAT
+scalar_type : INT    { $$ = CreateType($1, NULL); }
+            | DOUBLE { $$ = CreateType($1, NULL); }
+            | STRING { $$ = CreateType($1, NULL); }
+            | BOOL   { $$ = CreateType($1, NULL); }
+            | FLOAT  { $$ = CreateType($1, NULL); }
             ;
  
-literal_const : INT_CONST
-              | FLOAT_CONST
-              | SCIENTIFIC
-              | STR_CONST
-              | TRUE
-              | FALSE
+literal_const : INT_CONST   { $$ = CreateValue("int", yytext); }
+              | FLOAT_CONST { $$ = CreateValue("float", yytext); }
+              | SCIENTIFIC  { $$ = CreateValue("scientific", yytext); }
+              | STR_CONST   { $$ = CreateValue("string", yytext); }
+              | TRUE        { $$ = CreateValue("bool", yytext); }
+              | FALSE       { $$ = CreateValue("bool", yytext); }
               ;
 
 variable_reference : array_list

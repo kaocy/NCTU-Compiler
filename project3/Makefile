@@ -1,5 +1,5 @@
 TARGET = parser
-OBJECT = lex.yy.c y.tab.c y.tab.o lex.yy.o y.output parser y.tab.h main.o
+OBJECT = lex.yy.c y.tab.c y.tab.o lex.yy.o y.output parser y.tab.h main.o symbolTable.o
 CC = gcc -g
 LEX = lex
 YACC = yacc -v
@@ -8,8 +8,8 @@ LIBS = -lfl -ly
 
 all: $(TARGET)
 
-parser: y.tab.o lex.yy.o main.o
-	$(CC) -o $(TARGET) y.tab.o lex.yy.o main.o $(LIBS)
+parser: y.tab.o lex.yy.o main.o symbolTable.o
+	$(CC) -o $(TARGET) y.tab.o lex.yy.o main.o symbolTable.o $(LIBS)
 
 y.tab.o: y.tab.c
 	$(CC) -c y.tab.c
@@ -25,6 +25,9 @@ lex.yy.c: scanner.l
 
 main.o: main.c
 	$(CC) -c main.c
+
+symbolTable.o: symbolTable.c
+	$(CC) -c symbolTable.c
 
 clean:
 	rm -f $(TARGET) $(OBJECT)
