@@ -72,6 +72,7 @@ struct SymTableNode {
     struct ExtType* type;
     struct Attribute* attr;
     struct SymTableNode* next;
+    bool hasDefine; // for function
 };
 
 struct SymTable {

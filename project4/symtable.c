@@ -321,26 +321,6 @@ struct SymTableNode* deleteTableNode(struct SymTableNode* target) { // return ne
     return next;
 }
 
-struct SymTableNode* findRepeatDeclaration(struct SymTable* table, const char* name) {
-    struct SymTableNode *temp = table->head;
-    while (temp != NULL) {
-        if (strcmp(temp->name, name) == 0) return temp;
-        temp = temp->next;
-    }
-    return NULL;
-}
-
-struct SymTableNode* findFuncDeclaration(struct SymTable* table, const char* name) {
-    struct SymTableNode *temp = table->head;
-    while (temp != NULL) {
-        if (temp->kind == FUNCTION_t) {
-            if (strcmp(temp->name, name) == 0) return temp;
-        }
-        temp = temp->next;
-    }
-    return NULL;
-}
-
 struct SymTableNode* createVariableNode(const char* name, int level, struct ExtType* type) {
     struct SymTableNode *newNode = (struct SymTableNode*)malloc(sizeof(struct SymTableNode));
     //set node
@@ -375,7 +355,7 @@ struct SymTableNode* createConstNode(const char* name, int level, struct ExtType
     return newNode;
 }
 
-struct SymTableNode* createFunctionNode(const char* name, int level, struct ExtType* type, struct Attribute* attr) {
+struct SymTableNode* createFunctionNode(const char* name, int level, struct ExtType* type, struct Attribute* attr, bool hasDefine) {
     struct SymTableNode *newNode = (struct SymTableNode*)malloc(sizeof(struct SymTableNode));
     //set node
     strncpy(newNode->name, name, 32);
@@ -387,6 +367,8 @@ struct SymTableNode* createFunctionNode(const char* name, int level, struct ExtT
 
     newNode->attr = attr;
     if (attr != NULL)  newNode->attr->reference += 1;
+
+    newNode->hasDefine = hasDefine;
 
     newNode->next = NULL;
     newNode->reference = 0;
@@ -666,4 +648,104 @@ struct ArrayDimNode* deleteArrayDimNode(struct ArrayDimNode* target) {
         free(target);
     }
     return next;
+}
+
+struct SymTableNode* findRepeatDeclaration(struct SymTable* table, const char* name) {
+    struct SymTableNode *temp = table->head;
+    while (temp != NULL) {
+        if (strcmp(temp->name, name) == 0) return temp;
+        temp = temp->next;
+    }
+    return NULL;
+}
+
+struct SymTableNode* findFuncDeclaration(struct SymTable* table, const char* name, struct ExtType* type, struct Attribute* attr) {
+    struct SymTableNode *temp = table->head;
+    while (temp != NULL) {
+        if (temp->kind == FUNCTION_t) {
+            if (strcmp(temp->name, name) == 0) {
+                if (temp->hasDefine) {
+                    printf("Error at Line #%d: '%s' is redeclared.\n", linenum, name);
+                }
+                if (!checkType(temp->type, type)) {
+                    printf("Error at Line #%d: Function '%s' has inconsistent type to its declaration.\n", linenum, name);
+                }
+                if (temp->attr == NULL && attr == NULL) {
+                    temp->hasDefine = true;
+                    return temp;
+                }
+                if ((temp->attr == NULL || attr == NULL) ||
+                    !checkParameter(temp->attr->funcParam, attr->funcParam)) {
+                    printf("Error at Line #%d: Function '%s' has inconsistent parameter to its declaration.\n", linenum, name);
+                }
+                temp->hasDefine = true;
+                return temp;
+            }
+        }
+        temp = temp->next;
+    }
+    return NULL;
+}
+
+struct SymTableNode* findFuncForInvocation(struct SymTable* table, const char* name) {
+    struct SymTableNode *temp = table->head;
+    while (temp != NULL) {
+        if (temp->kind == FUNCTION_t) {
+            if (strcmp(temp->name, name) == 0) {
+                return temp;
+            }
+        }
+        temp = temp->next;
+    }
+    printf("Error at Line #%d: '%s' has not been declared.\n", linenum, name);
+    return NULL;
+}
+
+int checkType(struct ExtType* type1, struct ExtType* type2) {
+    if (type1->baseType != type2->baseType) return 0;
+    if (type1->isArray != type2->isArray)   return 0;
+
+    struct ArrayDimNode* head1 = type1->dimArray;
+    struct ArrayDimNode* head2 = type2->dimArray;
+    while(head1 != NULL && head2 != NULL) {
+        if (head1->size != head2->size) return 0;
+        head1 = head1->next;
+        head2 = head2->next;
+    }
+    if (head1 != NULL || head2 != NULL) return 0;
+    return 1;
+}
+
+int checkParameter(struct FuncAttr* param1, struct FuncAttr* param2) {
+    if (param1 == NULL && param2 == NULL)   return 1;
+    if (param1 == NULL || param2 == NULL)   return 0;
+
+    if (param1->paramNum != param2->paramNum)   return 0;
+    struct FuncAttrNode* head1 = param1->head;
+    struct FuncAttrNode* head2 = param2->head;
+    while(head1 != NULL && head2 != NULL) {
+        if (!checkType(head1->value, head2->value)) return 0;
+        head1 = head1->next;
+        head2 = head2->next;
+    }
+    if (head1 != NULL || head2 != NULL) return 0;
+    return 1;
+}
+
+void checkFunctionReturn(bool hasReturn) {
+    if (!hasReturn) {
+        printf("Error at Line #%d: Non-void type function should have return in last line.\n", linenum);
+    }
+}
+
+void checkUndeclaraFunction(struct SymTable* table) {
+    struct SymTableNode *temp = table->head;
+    while (temp != NULL) {
+        if (temp->kind == FUNCTION_t) {
+            if (!temp->hasDefine) {
+                printf("Error at Line #%d: Function '%s' is not defined.\n", linenum, temp->name);
+            }
+        }
+        temp = temp->next;
+    }
 }

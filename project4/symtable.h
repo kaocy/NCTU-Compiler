@@ -16,11 +16,9 @@ struct SymTable* deleteSymTable(struct SymTable* target);
 
 int insertTableNode(struct SymTable *table, struct SymTableNode* newNode);
 struct SymTableNode* deleteTableNode(struct SymTableNode* target);
-struct SymTableNode* findRepeatDeclaration(struct SymTable* table, const char* name);
-struct SymTableNode* findFuncDeclaration(struct SymTable* table, const char* name);
 
 struct SymTableNode* createVariableNode(const char* name, int level, struct ExtType* type);
-struct SymTableNode* createFunctionNode(const char* name, int level, struct ExtType* type, struct Attribute* attr);
+struct SymTableNode* createFunctionNode(const char* name, int level, struct ExtType* type, struct Attribute* attr, bool hasDefine);
 struct SymTableNode* createConstNode(const char* name, int level, struct ExtType* type, struct Attribute* attr);
 struct SymTableNode* createParameterNode(const char* name, int level, struct ExtType* type);
 
@@ -43,3 +41,11 @@ int deleteExtType(struct ExtType* target);
 struct ArrayDimNode* createArrayDimNode(int size);
 int connectArrayDimNode(struct ArrayDimNode* head, struct ArrayDimNode* newNode);
 struct ArrayDimNode* deleteArrayDimNode(struct ArrayDimNode* target);
+
+struct SymTableNode* findRepeatDeclaration(struct SymTable* table, const char* name);
+struct SymTableNode* findFuncDeclaration(struct SymTable* table, const char* name, struct ExtType* type, struct Attribute* attr);
+struct SymTableNode* findFuncForInvocation(struct SymTable* table, const char* name);
+int checkType(struct ExtType* type1, struct ExtType* type2);
+int checkParameter(struct FuncAttr* param1, struct FuncAttr* param2);
+void checkFunctionReturn(bool hasReturn);
+void checkUndeclaraFunction(struct SymTable* table);

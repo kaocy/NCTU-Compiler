@@ -18,6 +18,7 @@ int yyerror(char *msg);
 int scope = 0; // default is 0(global)
 struct SymTableList *symbolTableList; // create and initialize in main.c
 struct ExtType *funcReturnType;
+bool hasReturn; // check non-void function last line is return
 %}
 
 %union {
@@ -108,6 +109,7 @@ struct ExtType *funcReturnType;
 program : decl_list funct_def decl_and_def_list {
             if (Opt_SymTable == 1)
                 printSymTable(symbolTableList->global);
+            checkUndeclaraFunction(symbolTableList->global);
             deleteLastSymTable(symbolTableList);
         }
         ;
@@ -128,24 +130,22 @@ decl_and_def_list : decl_and_def_list var_decl
 
 funct_def : scalar_type ID L_PAREN R_PAREN {
                 funcReturnType = createExtType($1, 0, NULL);
-                struct SymTableNode *node;
-                node = findFuncDeclaration(symbolTableList->global, $2);
+                struct SymTableNode* node = findFuncDeclaration(symbolTableList->global, $2, funcReturnType, NULL);
                 //no declaration yet
                 if (node == NULL) {
-                    struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL);
+                    struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL, true);
                     insertTableNode(symbolTableList->global, newNode);
                 }
                 free($2);
             }
-            compound_statement
+            compound_statement { checkFunctionReturn(hasReturn); }
           | scalar_type ID L_PAREN parameter_list R_PAREN {
                 funcReturnType = createExtType($1, 0, NULL);
-                struct SymTableNode *node;
-                node = findFuncDeclaration(symbolTableList->global, $2);
                 struct Attribute *attr = createFunctionAttribute($4);
+                struct SymTableNode* node = findFuncDeclaration(symbolTableList->global, $2, funcReturnType, attr);
                 // no declaration yet
                 if (node == NULL) {
-                    struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr);
+                    struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr, true);
                     insertTableNode(symbolTableList->global,newNode);
                 }
             }
@@ -160,7 +160,8 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
                     attrNode = attrNode->next;
                 }
             }
-            var_const_stmt_list R_BRACE {   
+            var_const_stmt_list R_BRACE {
+                checkFunctionReturn(hasReturn);
                 if (Opt_SymTable == 1)
                     printSymTable(symbolTableList->tail);
                 deleteLastSymTable(symbolTableList);
@@ -169,11 +170,10 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
             }
           | VOID ID L_PAREN R_PAREN {
                 funcReturnType = createExtType(VOID_t, 0, NULL);
-                struct SymTableNode *node;
-                node = findFuncDeclaration(symbolTableList->global, $2);
+                struct SymTableNode *node = findFuncDeclaration(symbolTableList->global, $2, funcReturnType, NULL);
                 // no declaration yet
                 if (node == NULL) {
-                    struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL);
+                    struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL, true);
                     insertTableNode(symbolTableList->global, newNode);
                 }       
                 free($2);
@@ -181,12 +181,11 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
             compound_statement
           | VOID ID L_PAREN parameter_list R_PAREN {
                 funcReturnType = createExtType(VOID_t, 0, NULL);
-                struct SymTableNode *node;
-                node = findFuncDeclaration(symbolTableList->global, $2);
+                struct Attribute *attr = createFunctionAttribute($4);
+                struct SymTableNode *node = findFuncDeclaration(symbolTableList->global, $2, funcReturnType, attr);
                 // no declaration yet
                 if (node == NULL) {
-                    struct Attribute *attr = createFunctionAttribute($4);
-                    struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr);
+                    struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr, true);
                     insertTableNode(symbolTableList->global, newNode);
                 }
             }
@@ -212,27 +211,27 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
 
 funct_decl : scalar_type ID L_PAREN R_PAREN SEMICOLON {
                 funcReturnType = createExtType($1, 0, NULL);
-                struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL);
+                struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL, false);
                 insertTableNode(symbolTableList->global, newNode);
                 free($2);
             }
            | scalar_type ID L_PAREN parameter_list R_PAREN SEMICOLON {
                 funcReturnType = createExtType($1, 0, NULL);
                 struct Attribute *attr = createFunctionAttribute($4);
-                struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr);
+                struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr, false);
                 insertTableNode(symbolTableList->global, newNode);
                 free($2);
             }
            | VOID ID L_PAREN R_PAREN SEMICOLON {
                 funcReturnType = createExtType(VOID_t, 0, NULL);
-                struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL);
+                struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL, false);
                 insertTableNode(symbolTableList->global, newNode);
                 free($2);
             }
            | VOID ID L_PAREN parameter_list R_PAREN SEMICOLON {
                 funcReturnType = createExtType(VOID_t, 0, NULL);
                 struct Attribute *attr = createFunctionAttribute($4);
-                struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr);
+                struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr, false);
                 insertTableNode(symbolTableList->global, newNode);
                 free($2);
             }
@@ -390,19 +389,19 @@ const_list : const_list COMMA ID ASSIGN_OP literal_const {
            ;
 
 var_const_stmt_list : var_const_stmt_list statement 
-                    | var_const_stmt_list var_decl
-                    | var_const_stmt_list const_decl
+                    | var_const_stmt_list var_decl { hasReturn = false; }
+                    | var_const_stmt_list const_decl { hasReturn = false; }
                     |
                     ;
 
 /*********************** Statements ***********************/
 
-statement : compound_statement
-          | simple_statement
-          | conditional_statement
-          | while_statement
-          | for_statement
-          | function_invoke_statement
+statement : compound_statement { hasReturn = false; }
+          | simple_statement { hasReturn = false; }
+          | conditional_statement { hasReturn = false; }
+          | while_statement { hasReturn = false; }
+          | for_statement { hasReturn = false; }
+          | function_invoke_statement { hasReturn = false; }
           | jump_statement
           ; 
 
@@ -494,13 +493,19 @@ increment_expression : increment_expression COMMA variable_reference ASSIGN_OP l
                      | variable_reference ASSIGN_OP logical_expression
                      ;
 
-function_invoke_statement : ID L_PAREN logical_expression_list R_PAREN SEMICOLON { free($1); }
-                          | ID L_PAREN R_PAREN SEMICOLON { free($1); }
+function_invoke_statement : ID L_PAREN logical_expression_list R_PAREN SEMICOLON {
+                                findFuncForInvocation(symbolTableList->global, $1);
+                                free($1);
+                            }
+                          | ID L_PAREN R_PAREN SEMICOLON {
+                                findFuncForInvocation(symbolTableList->global, $1);
+                                free($1);
+                            }
                           ;
 
-jump_statement : CONTINUE SEMICOLON
-               | BREAK SEMICOLON
-               | RETURN logical_expression SEMICOLON
+jump_statement : CONTINUE SEMICOLON { hasReturn = false; }
+               | BREAK SEMICOLON { hasReturn = false; }
+               | RETURN logical_expression SEMICOLON { hasReturn = true; }
                ;
 
 /************************ Utilities ************************/
@@ -558,8 +563,14 @@ term : term MUL_OP factor
 factor : variable_reference
        | SUB_OP factor
        | L_PAREN logical_expression R_PAREN
-       | ID L_PAREN logical_expression_list R_PAREN { free($1); }
-       | ID L_PAREN R_PAREN { free($1); }
+       | ID L_PAREN logical_expression_list R_PAREN {
+            findFuncForInvocation(symbolTableList->global, $1);
+            free($1);
+        }
+       | ID L_PAREN R_PAREN {
+            findFuncForInvocation(symbolTableList->global, $1);
+            free($1);
+        }
        | literal_const { deleteAttribute($1); }
        ;
 
