@@ -12,10 +12,10 @@ int printSymTable(struct SymTable* table) {
 
     if (table == NULL)    return -1;
     if (table->head == NULL)    return 1; // no entry to output
-    printf("=======================================================================================\n");
+    printf("======================================================================================\n");
     // Name [29 blanks] Kind [7 blanks] Level [7 blank] Type [15 blanks] Attribute [15 blanks]
     printf("%-33s%-11s%-12s%-19s%-24s\n", "Name", "Kind", "Level", "Type", "Attribute");
-    printf("---------------------------------------------------------------------------------------\n");
+    printf("--------------------------------------------------------------------------------------\n");
     entry = table->head;
     while (entry != NULL) {
         // name
@@ -601,7 +601,20 @@ struct ExtType* createExtType(BTYPE baseType, bool isArray, struct ArrayDimNode*
         ++dimNum;
     }
     newExtType->dim = dimNum;
+    newExtType->next = NULL;
     return newExtType;
+}
+
+int connectExtType(struct ExtType* head, struct ExtType* newType) {
+    // connect dimension node to tail of list
+    if (head == NULL || newType == NULL || head == newType) return -1;
+    struct ExtType *temp = head;
+    while (temp->next != NULL) {
+        temp = temp->next;
+    }
+    temp->next = newType;
+    newType->reference += 1;
+    return 0;
 }
 
 int deleteExtType(struct ExtType* target) {
@@ -612,6 +625,15 @@ int deleteExtType(struct ExtType* target) {
         while (target->dimArray != NULL) {
             target->dimArray = deleteArrayDimNode(target->dimArray);
         }
+    }
+    return 0;
+}
+
+int deleteExtTypeList(struct ExtType* head) {
+    while (head != NULL) {
+        struct ExtType* next = head->next;
+        deleteExtType(head);
+        head = next;
     }
     return 0;
 }
@@ -667,7 +689,7 @@ struct SymTableNode* findFuncDeclaration(struct SymTable* table, const char* nam
                 if (temp->hasDefine) {
                     printf("Error at Line #%d: '%s' is redeclared.\n", linenum, name);
                 }
-                if (!checkType(temp->type, type)) {
+                if (!checkType(temp->type, type, true)) {
                     printf("Error at Line #%d: Function '%s' has inconsistent type to its declaration.\n", linenum, name);
                 }
                 if (temp->attr == NULL && attr == NULL) {
@@ -675,7 +697,7 @@ struct SymTableNode* findFuncDeclaration(struct SymTable* table, const char* nam
                     return temp;
                 }
                 if ((temp->attr == NULL || attr == NULL) ||
-                    !checkParameter(temp->attr->funcParam, attr->funcParam)) {
+                    !checkParameterForDefinition(temp->attr->funcParam, attr->funcParam)) {
                     printf("Error at Line #%d: Function '%s' has inconsistent parameter to its declaration.\n", linenum, name);
                 }
                 temp->hasDefine = true;
@@ -687,12 +709,31 @@ struct SymTableNode* findFuncDeclaration(struct SymTable* table, const char* nam
     return NULL;
 }
 
-struct SymTableNode* findFuncForInvocation(struct SymTable* table, const char* name) {
+struct ExtType* findFuncForInvocation(struct SymTable* table, const char* name, struct ExtType* head) {
     struct SymTableNode *temp = table->head;
     while (temp != NULL) {
         if (temp->kind == FUNCTION_t) {
             if (strcmp(temp->name, name) == 0) {
-                return temp;
+                // for those functions with no parameters
+                if (temp->attr == NULL) {
+                    if (head != NULL) {
+                        printf("Error at Line #%d: The number of parameters must be identical to the function declaration/definition.\n", linenum);
+                    }
+                }
+                else {
+                    struct FuncAttrNode* param = temp->attr->funcParam->head;
+                    while (param != NULL && head != NULL) {
+                        if (!checkType(param->value, head, false)) {
+                            printf("Error at Line #%d: The type of parameters must be identical to the function declaration/definition.\n", linenum);
+                        }
+                        param = param->next;
+                        head = head->next;
+                    }
+                    if (param != NULL || head != NULL) {
+                        printf("Error at Line #%d: The number of parameters must be identical to the function declaration/definition.\n", linenum);
+                    }
+                }
+                return temp->type;
             }
         }
         temp = temp->next;
@@ -701,8 +742,47 @@ struct SymTableNode* findFuncForInvocation(struct SymTable* table, const char* n
     return NULL;
 }
 
-int checkType(struct ExtType* type1, struct ExtType* type2) {
-    if (type1->baseType != type2->baseType) return 0;
+struct ExtType* findVariable(struct SymTable* table, const char* name, int dimension_num) {
+    while (table != NULL) {
+        struct SymTableNode *temp = table->head;
+        while (temp != NULL) {
+            if (temp->kind == PARAMETER_t || temp->kind == VARIABLE_t) {
+                if (strcmp(temp->name, name) == 0) {
+                    struct ExtType* type = temp->type;
+                    if (type->isArray) {
+                        struct ArrayDimNode* dim = type->dimArray;
+                        // add reference for new type
+                        while (dim != NULL) {
+                            dim->reference += 1;
+                            dim = dim->next;
+                        }
+                        // check array dimension number
+                        dim = type->dimArray;
+                        while (dim != NULL && dimension_num > 0) {
+                            dim->reference -= 1;
+                            dim = dim->next;
+                            --dimension_num;
+                        }
+
+                        if (dim != NULL) {
+                            return createExtType(type->baseType, true, dim);
+                        }
+                        else {
+                            return createExtType(type->baseType, false, NULL);
+                        }
+                    }
+                    return createExtType(type->baseType, false, NULL);
+                }
+            }
+            temp = temp->next;
+        }
+        table = table->prev;
+    }
+    printf("Error at Line #%d: '%s' has not been declared.\n", linenum, name);
+    return NULL;
+}
+
+int checkType(struct ExtType* type1, struct ExtType* type2, bool exact) {
     if (type1->isArray != type2->isArray)   return 0;
 
     struct ArrayDimNode* head1 = type1->dimArray;
@@ -713,10 +793,29 @@ int checkType(struct ExtType* type1, struct ExtType* type2) {
         head2 = head2->next;
     }
     if (head1 != NULL || head2 != NULL) return 0;
+
+    if (exact) {
+        if (type1->baseType != type2->baseType) return 0;
+    }
+    else {
+        if (type1->baseType == DOUBLE_t) {
+            if (type2->baseType != DOUBLE_t &&
+                type2->baseType != FLOAT_t &&
+                type2->baseType != INT_t)   return 0;
+        }
+        else if (type1->baseType == FLOAT_t) {
+            if (type2->baseType != FLOAT_t &&
+                type2->baseType != INT_t)   return 0;
+        }
+        else {
+            if (type1->baseType != type2->baseType) return 0;
+        }
+    }
+
     return 1;
 }
 
-int checkParameter(struct FuncAttr* param1, struct FuncAttr* param2) {
+int checkParameterForDefinition(struct FuncAttr* param1, struct FuncAttr* param2) {
     if (param1 == NULL && param2 == NULL)   return 1;
     if (param1 == NULL || param2 == NULL)   return 0;
 
@@ -724,7 +823,7 @@ int checkParameter(struct FuncAttr* param1, struct FuncAttr* param2) {
     struct FuncAttrNode* head1 = param1->head;
     struct FuncAttrNode* head2 = param2->head;
     while(head1 != NULL && head2 != NULL) {
-        if (!checkType(head1->value, head2->value)) return 0;
+        if (!checkType(head1->value, head2->value, true)) return 0;
         head1 = head1->next;
         head2 = head2->next;
     }
@@ -734,7 +833,13 @@ int checkParameter(struct FuncAttr* param1, struct FuncAttr* param2) {
 
 void checkFunctionReturn(bool hasReturn) {
     if (!hasReturn) {
-        printf("Error at Line #%d: Non-void type function should have return in last line.\n", linenum);
+        printf("Error at Line #%d: Non-void type function should have return in the last line.\n", linenum);
+    }
+}
+
+void checkFunctionReturnType(struct ExtType* type1, struct ExtType* type2) {
+    if (!checkType(type1, type2, false)) {
+        printf("Error at Line #%d: The type of return statement must match the function type.\n", linenum);
     }
 }
 
@@ -747,5 +852,36 @@ void checkUndeclaraFunction(struct SymTable* table) {
             }
         }
         temp = temp->next;
+    }
+}
+
+void checkInLoop(int inLoop, char *statement) {
+    if (inLoop <= 0) {
+        printf("Error at Line #%d: '%s' can only appear in loop statements.\n", linenum, statement);
+    }
+}
+
+void checkConditionalExpression(struct ExtType* type) {
+    if (type->baseType != BOOL_t) {
+        printf("Error at Line #%d: Conditional expression must be Boolean type.\n", linenum);
+    }
+}
+
+void checkControlExpression(struct ExtType* type) {
+    if (type->baseType != BOOL_t) {
+        printf("Error at Line #%d: Control expression must be Boolean type.\n", linenum);
+    }
+}
+
+void checkScalarType(struct ExtType* type) {
+    // for print and read statement
+    if (type->isArray) {
+        printf("Error at Line #%d: Variable references in print and read statements must be scalar type.\n", linenum);
+    }
+}
+
+void checkAssignType(struct ExtType* type1, struct ExtType* type2) {
+    if (!checkType(type1, type2, false)) {
+        printf("Error at Line #%d: The type of left-hand side must be the same as that of the right-hand side.\n", linenum);
     }
 }

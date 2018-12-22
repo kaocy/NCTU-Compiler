@@ -36,7 +36,9 @@ struct FuncAttrNode* createFuncAttrNode(struct ExtType* type, const char* name);
 int connectFuncAttrNode(struct FuncAttrNode* head, struct FuncAttrNode* newNode);
 
 struct ExtType* createExtType(BTYPE baseType, bool isArray, struct ArrayDimNode* dimArray);
+int connectExtType(struct ExtType* head, struct ExtType* newType);
 int deleteExtType(struct ExtType* target);
+int deleteExtTypeList(struct ExtType* head);
 
 struct ArrayDimNode* createArrayDimNode(int size);
 int connectArrayDimNode(struct ArrayDimNode* head, struct ArrayDimNode* newNode);
@@ -44,8 +46,16 @@ struct ArrayDimNode* deleteArrayDimNode(struct ArrayDimNode* target);
 
 struct SymTableNode* findRepeatDeclaration(struct SymTable* table, const char* name);
 struct SymTableNode* findFuncDeclaration(struct SymTable* table, const char* name, struct ExtType* type, struct Attribute* attr);
-struct SymTableNode* findFuncForInvocation(struct SymTable* table, const char* name);
-int checkType(struct ExtType* type1, struct ExtType* type2);
-int checkParameter(struct FuncAttr* param1, struct FuncAttr* param2);
+struct ExtType* findFuncForInvocation(struct SymTable* table, const char* name, struct ExtType* head);
+struct ExtType* findVariable(struct SymTable* table, const char* name, int dimension_num);
+
+int checkType(struct ExtType* type1, struct ExtType* type2, bool exact);
+int checkParameterForDefinition(struct FuncAttr* param1, struct FuncAttr* param2);
 void checkFunctionReturn(bool hasReturn);
+void checkFunctionReturnType(struct ExtType* type1, struct ExtType* type2);
 void checkUndeclaraFunction(struct SymTable* table);
+void checkInLoop(int inLoop, char *statement);
+void checkConditionalExpression(struct ExtType* type);
+void checkControlExpression(struct ExtType* type);
+void checkScalarType(struct ExtType* type);
+void checkAssignType(struct ExtType* type1, struct ExtType* type2);

@@ -11,6 +11,7 @@ struct ExtType { // All type, such as scalar and array
     bool isArray;
     int dim; // Array type dimension
     struct ArrayDimNode* dimArray;
+    struct ExtType* next;
 };
 
 struct Variable {

@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include"datatype.h"
-#include"symtable.h"
+#include "datatype.h"
+#include "symtable.h"
 
 // declared in scanner.l
 extern int linenum;
@@ -19,6 +19,7 @@ int scope = 0; // default is 0(global)
 struct SymTableList *symbolTableList; // create and initialize in main.c
 struct ExtType *funcReturnType;
 bool hasReturn; // check non-void function last line is return
+int inLoop = 0; // check whether in loop
 %}
 
 %union {
@@ -27,7 +28,7 @@ bool hasReturn; // check non-void function last line is return
     double doubleVal;
     char   *stringVal;
     char   *idName;
-    // struct ExtType      *extType;
+    struct ExtType      *extType;
     struct Variable     *variable;
     struct VariableList *variableList;
     struct ArrayDimNode *arrayDimNode;
@@ -49,10 +50,22 @@ bool hasReturn; // check non-void function last line is return
 %type <variable> array_decl
 %type <variableList> identifier_list
 %type <arrayDimNode> dim
+%type <intVal> dimension
 %type <funcAttrNode> parameter_list
 %type <attribute> literal_const 
 %type <symTableNode> const_list
 %type <bType> scalar_type
+
+%type <extType> logical_expression_list
+%type <extType> logical_expression
+%type <extType> logical_term
+%type <extType> logical_factor
+%type <extType> relation_expression
+%type <extType> arithmetic_expression
+%type <extType> term
+%type <extType> factor
+%type <extType> variable_reference
+%type <extType> array_list
 
 %token  LE_OP
 %token  NE_OP
@@ -417,128 +430,137 @@ compound_statement : L_BRACE  { // enter a new scope
                     }
                    ;    
 
-simple_statement : variable_reference ASSIGN_OP logical_expression SEMICOLON
-                 | PRINT logical_expression SEMICOLON
-                 | READ variable_reference SEMICOLON
+simple_statement : variable_reference ASSIGN_OP logical_expression SEMICOLON {
+                        checkAssignType($1, $3);
+                        deleteExtType($1);
+                        deleteExtType($3);
+                    }
+                 | PRINT logical_expression SEMICOLON {
+                        checkScalarType($2);
+                        deleteExtType($2);
+                    }
+                 | READ variable_reference SEMICOLON {
+                        checkScalarType($2);
+                        deleteExtType($2);
+                    }
                  ;
 
-conditional_statement : IF L_PAREN logical_expression R_PAREN compound_statement
-                      | IF L_PAREN logical_expression R_PAREN compound_statement  
-                        ELSE compound_statement  
+conditional_statement : IF L_PAREN boolean_expression R_PAREN compound_statement
+                      | IF L_PAREN boolean_expression R_PAREN compound_statement
+                        ELSE compound_statement
                       ;
 
-while_statement : WHILE { // enter a new scope
+while_statement : WHILE L_PAREN boolean_expression R_PAREN 
+                  L_BRACE { // enter a new scope
                     ++scope;
+                    ++inLoop;
                     AddSymTable(symbolTableList);
-                }
-                  L_PAREN logical_expression R_PAREN
-                  L_BRACE var_const_stmt_list R_BRACE {   
+                } 
+                  var_const_stmt_list R_BRACE {   
                     if (Opt_SymTable == 1)
                         printSymTable(symbolTableList->tail);
                     deleteLastSymTable(symbolTableList);
                     --scope;
+                    --inLoop;
                 }
                 | DO L_BRACE { // enter a new scope
                     ++scope;
+                    ++inLoop;
                     AddSymTable(symbolTableList);
                 }
                   var_const_stmt_list
-                  R_BRACE WHILE L_PAREN logical_expression R_PAREN SEMICOLON {
+                  R_BRACE WHILE L_PAREN boolean_expression R_PAREN SEMICOLON {
                     if (Opt_SymTable == 1)
                         printSymTable(symbolTableList->tail);
                     deleteLastSymTable(symbolTableList);
                     --scope;
+                    --inLoop;
                 }
                 ;
 
-for_statement : FOR { // enter a new scope
+for_statement : FOR L_PAREN initial_expression SEMICOLON control_expression SEMICOLON increment_expression R_PAREN 
+                L_BRACE { // enter a new scope
                     ++scope;
+                    ++inLoop;
                     AddSymTable(symbolTableList);
                 }
-                L_PAREN initial_expression_list SEMICOLON control_expression_list SEMICOLON increment_expression_list R_PAREN 
-                L_BRACE var_const_stmt_list R_BRACE {
+                var_const_stmt_list R_BRACE {
                     if (Opt_SymTable == 1)
                         printSymTable(symbolTableList->tail);
                     deleteLastSymTable(symbolTableList);
                     --scope;
+                    --inLoop;
                 }
               ;
 
-initial_expression_list : initial_expression
-                        |
-                        ;
+boolean_expression : logical_expression {
+                        checkConditionalExpression($1);
+                        deleteExtType($1);
+                    }
 
-initial_expression : initial_expression COMMA variable_reference ASSIGN_OP logical_expression
-                   | initial_expression COMMA logical_expression
-                   | logical_expression
+initial_expression : logical_expression
                    | variable_reference ASSIGN_OP logical_expression
 
-control_expression_list : control_expression
-                        |
-                        ;
-
-control_expression : control_expression COMMA variable_reference ASSIGN_OP logical_expression
-                   | control_expression COMMA logical_expression
-                   | logical_expression
+control_expression : logical_expression {
+                        checkControlExpression($1);
+                        deleteExtType($1);
+                    }
                    | variable_reference ASSIGN_OP logical_expression
                    ;
 
-increment_expression_list : increment_expression 
-                          |
-                          ;
-
-increment_expression : increment_expression COMMA variable_reference ASSIGN_OP logical_expression
-                     | increment_expression COMMA logical_expression
-                     | logical_expression
+increment_expression : logical_expression
                      | variable_reference ASSIGN_OP logical_expression
                      ;
 
 function_invoke_statement : ID L_PAREN logical_expression_list R_PAREN SEMICOLON {
-                                findFuncForInvocation(symbolTableList->global, $1);
+                                findFuncForInvocation(symbolTableList->global, $1, $3);
+                                deleteExtTypeList($3);
                                 free($1);
                             }
                           | ID L_PAREN R_PAREN SEMICOLON {
-                                findFuncForInvocation(symbolTableList->global, $1);
+                                findFuncForInvocation(symbolTableList->global, $1, NULL);
                                 free($1);
                             }
                           ;
 
-jump_statement : CONTINUE SEMICOLON { hasReturn = false; }
-               | BREAK SEMICOLON { hasReturn = false; }
-               | RETURN logical_expression SEMICOLON { hasReturn = true; }
+jump_statement : CONTINUE SEMICOLON {
+                    hasReturn = false;
+                    checkInLoop(inLoop, "continue");
+                }
+               | BREAK SEMICOLON {
+                    hasReturn = false;
+                    checkInLoop(inLoop, "break");
+                }
+               | RETURN logical_expression SEMICOLON { 
+                    hasReturn = true;
+                    checkFunctionReturnType(funcReturnType, $2);
+                    deleteExtType($2);
+                }
                ;
 
 /************************ Utilities ************************/
 
-variable_reference : array_list
-                   | ID { free($1); }
-                   ;
-
-array_list : ID dimension { free($1); }
-           ;
-
-dimension : dimension ML_BRACE logical_expression MR_BRACE
-          | ML_BRACE logical_expression MR_BRACE
-          ;
-
-logical_expression_list : logical_expression_list COMMA logical_expression
-                        | logical_expression
+logical_expression_list : logical_expression_list COMMA logical_expression {
+                            connectExtType($1, $3);
+                            $$ = $1;
+                        }
+                        | logical_expression { $$ = $1; }
                         ;
 
 logical_expression : logical_expression OR_OP logical_term
-                   | logical_term
+                   | logical_term { $$ = $1; }
                    ;
 
 logical_term : logical_term AND_OP logical_factor
-             | logical_factor
+             | logical_factor { $$ = $1; }
              ;
 
-logical_factor : NOT_OP logical_factor
-               | relation_expression
+logical_factor : NOT_OP logical_factor { $$ = $2; }
+               | relation_expression { $$ = $1; }
                ;
 
 relation_expression : arithmetic_expression relation_operator arithmetic_expression
-                    | arithmetic_expression
+                    | arithmetic_expression { $$ = $1; }
                     ;
 
 relation_operator : LT_OP
@@ -551,28 +573,49 @@ relation_operator : LT_OP
 
 arithmetic_expression : arithmetic_expression ADD_OP term
                       | arithmetic_expression SUB_OP term
-                      | term
+                      | term { $$ = $1; }
                       ;
 
 term : term MUL_OP factor
      | term DIV_OP factor
      | term MOD_OP factor
-     | factor
+     | factor { $$ = $1; }
      ;
 
-factor : variable_reference
-       | SUB_OP factor
-       | L_PAREN logical_expression R_PAREN
+factor : variable_reference { $$ = $1; }
+       | SUB_OP factor { $$ = $2; }
+       | L_PAREN logical_expression R_PAREN { $$ = $2; }
        | ID L_PAREN logical_expression_list R_PAREN {
-            findFuncForInvocation(symbolTableList->global, $1);
+            $$ = findFuncForInvocation(symbolTableList->global, $1, $3);
+            deleteExtTypeList($3);
             free($1);
         }
        | ID L_PAREN R_PAREN {
-            findFuncForInvocation(symbolTableList->global, $1);
+            $$ = findFuncForInvocation(symbolTableList->global, $1, NULL);
             free($1);
         }
-       | literal_const { deleteAttribute($1); }
+       | literal_const {
+            $$ = createExtType($1->constVal->type, NULL, NULL);
+            deleteAttribute($1);
+        }
        ;
+
+variable_reference : array_list { $$ = $1; }
+                   | ID {
+                        $$ = findVariable(symbolTableList->tail, $1, 0);
+                        free($1);
+                    }
+                   ;
+
+array_list : ID dimension {
+                $$ = findVariable(symbolTableList->tail, $1, $2);
+                free($1);
+            }
+           ;
+
+dimension : dimension ML_BRACE logical_expression MR_BRACE { $$ = $1 + 1; }
+          | ML_BRACE logical_expression MR_BRACE { $$ = 1; }
+          ;
 
 scalar_type : INT { $$ = INT_t; }
             | DOUBLE { $$ = DOUBLE_t; }
