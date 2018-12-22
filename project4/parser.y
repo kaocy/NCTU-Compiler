@@ -67,6 +67,8 @@ int inLoop = 0; // check whether in loop
 %type <extType> variable_reference
 %type <extType> array_list
 
+%type <stringVal> relation_operator
+
 %token  LE_OP
 %token  NE_OP
 %token  GE_OP
@@ -142,7 +144,7 @@ decl_and_def_list : decl_and_def_list var_decl
                   ;
 
 funct_def : scalar_type ID L_PAREN R_PAREN {
-                funcReturnType = createExtType($1, 0, NULL);
+                funcReturnType = createExtType($1, false, NULL);
                 struct SymTableNode* node = findFuncDeclaration(symbolTableList->global, $2, funcReturnType, NULL);
                 //no declaration yet
                 if (node == NULL) {
@@ -153,7 +155,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
             }
             compound_statement { checkFunctionReturn(hasReturn); }
           | scalar_type ID L_PAREN parameter_list R_PAREN {
-                funcReturnType = createExtType($1, 0, NULL);
+                funcReturnType = createExtType($1, false, NULL);
                 struct Attribute *attr = createFunctionAttribute($4);
                 struct SymTableNode* node = findFuncDeclaration(symbolTableList->global, $2, funcReturnType, attr);
                 // no declaration yet
@@ -182,7 +184,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
                 free($2);
             }
           | VOID ID L_PAREN R_PAREN {
-                funcReturnType = createExtType(VOID_t, 0, NULL);
+                funcReturnType = createExtType(VOID_t, false, NULL);
                 struct SymTableNode *node = findFuncDeclaration(symbolTableList->global, $2, funcReturnType, NULL);
                 // no declaration yet
                 if (node == NULL) {
@@ -193,7 +195,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
             }
             compound_statement
           | VOID ID L_PAREN parameter_list R_PAREN {
-                funcReturnType = createExtType(VOID_t, 0, NULL);
+                funcReturnType = createExtType(VOID_t, false, NULL);
                 struct Attribute *attr = createFunctionAttribute($4);
                 struct SymTableNode *node = findFuncDeclaration(symbolTableList->global, $2, funcReturnType, attr);
                 // no declaration yet
@@ -223,26 +225,26 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
           ;
 
 funct_decl : scalar_type ID L_PAREN R_PAREN SEMICOLON {
-                funcReturnType = createExtType($1, 0, NULL);
+                funcReturnType = createExtType($1, false, NULL);
                 struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL, false);
                 insertTableNode(symbolTableList->global, newNode);
                 free($2);
             }
            | scalar_type ID L_PAREN parameter_list R_PAREN SEMICOLON {
-                funcReturnType = createExtType($1, 0, NULL);
+                funcReturnType = createExtType($1, false, NULL);
                 struct Attribute *attr = createFunctionAttribute($4);
                 struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr, false);
                 insertTableNode(symbolTableList->global, newNode);
                 free($2);
             }
            | VOID ID L_PAREN R_PAREN SEMICOLON {
-                funcReturnType = createExtType(VOID_t, 0, NULL);
+                funcReturnType = createExtType(VOID_t, false, NULL);
                 struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL, false);
                 insertTableNode(symbolTableList->global, newNode);
                 free($2);
             }
            | VOID ID L_PAREN parameter_list R_PAREN SEMICOLON {
-                funcReturnType = createExtType(VOID_t, 0, NULL);
+                funcReturnType = createExtType(VOID_t, false, NULL);
                 struct Attribute *attr = createFunctionAttribute($4);
                 struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr, false);
                 insertTableNode(symbolTableList->global, newNode);
@@ -252,7 +254,7 @@ funct_decl : scalar_type ID L_PAREN R_PAREN SEMICOLON {
 
 parameter_list : parameter_list COMMA scalar_type ID {
                     struct FuncAttrNode *newNode = (struct FuncAttrNode*)malloc(sizeof(struct FuncAttrNode));
-                    newNode->value = createExtType($3, 0, NULL);
+                    newNode->value = createExtType($3, false, NULL);
                     newNode->name = strdup($4);
                     newNode->next = NULL;
                     free($4);              
@@ -272,7 +274,7 @@ parameter_list : parameter_list COMMA scalar_type ID {
                 }
                | scalar_type ID {
                     struct FuncAttrNode *newNode = (struct FuncAttrNode*)malloc(sizeof(struct FuncAttrNode));
-                    newNode->value = createExtType($1, 0, NULL);
+                    newNode->value = createExtType($1, false, NULL);
                     newNode->name = strdup($2);
                     newNode->next = NULL;
                     free($2);  
@@ -499,7 +501,11 @@ boolean_expression : logical_expression {
                     }
 
 initial_expression : logical_expression
-                   | variable_reference ASSIGN_OP logical_expression
+                   | variable_reference ASSIGN_OP logical_expression {
+                        checkAssignType($1, $3);
+                        deleteExtType($1);
+                        deleteExtType($3);
+                    }
 
 control_expression : logical_expression {
                         checkControlExpression($1);
@@ -509,7 +515,11 @@ control_expression : logical_expression {
                    ;
 
 increment_expression : logical_expression
-                     | variable_reference ASSIGN_OP logical_expression
+                     | variable_reference ASSIGN_OP logical_expression {
+                            checkAssignType($1, $3);
+                            deleteExtType($1);
+                            deleteExtType($3);
+                        }
                      ;
 
 function_invoke_statement : ID L_PAREN logical_expression_list R_PAREN SEMICOLON {
@@ -541,44 +551,90 @@ jump_statement : CONTINUE SEMICOLON {
 /************************ Utilities ************************/
 
 logical_expression_list : logical_expression_list COMMA logical_expression {
+                            $3->reference -= 1; // in connect, reference += 1
                             connectExtType($1, $3);
                             $$ = $1;
                         }
                         | logical_expression { $$ = $1; }
                         ;
 
-logical_expression : logical_expression OR_OP logical_term
+logical_expression : logical_expression OR_OP logical_term {
+                        $$ = logicalOP($1, $3, "||");
+                        $$->reference += 1;
+                        deleteExtType($1);
+                        deleteExtType($3);
+                    }
                    | logical_term { $$ = $1; }
                    ;
 
-logical_term : logical_term AND_OP logical_factor
+logical_term : logical_term AND_OP logical_factor {
+                    $$ = logicalOP($1, $3, "&&");
+                    $$->reference += 1;
+                    deleteExtType($1);
+                    deleteExtType($3);
+                }
              | logical_factor { $$ = $1; }
              ;
 
-logical_factor : NOT_OP logical_factor { $$ = $2; }
+logical_factor : NOT_OP logical_factor {
+                    $$ = logicalNotOP($2);
+                    $$->reference += 1;
+                    deleteExtType($2);
+                }
                | relation_expression { $$ = $1; }
                ;
 
-relation_expression : arithmetic_expression relation_operator arithmetic_expression
+relation_expression : arithmetic_expression relation_operator arithmetic_expression {
+                        $$ = relationalOP($1, $3, $2);
+                        $$->reference += 1;
+                        deleteExtType($1);
+                        deleteExtType($3);
+                        free($2);
+                    }
                     | arithmetic_expression { $$ = $1; }
                     ;
 
-relation_operator : LT_OP
-                  | LE_OP
-                  | EQ_OP
-                  | GE_OP
-                  | GT_OP
-                  | NE_OP
+relation_operator : LT_OP { $$ = strdup("<"); }
+                  | LE_OP { $$ = strdup("<="); }
+                  | EQ_OP { $$ = strdup("=="); }
+                  | GE_OP { $$ = strdup(">="); }
+                  | GT_OP { $$ = strdup(">"); }
+                  | NE_OP { $$ = strdup("!="); }
                   ;
 
-arithmetic_expression : arithmetic_expression ADD_OP term
-                      | arithmetic_expression SUB_OP term
+arithmetic_expression : arithmetic_expression ADD_OP term {
+                            $$ = arithmeticOP($1, $3, '+');
+                            $$->reference += 1;
+                            deleteExtType($1);
+                            deleteExtType($3);
+                        }
+                      | arithmetic_expression SUB_OP term {
+                            $$ = arithmeticOP($1, $3, '-');
+                            $$->reference += 1;
+                            deleteExtType($1);
+                            deleteExtType($3);
+                        }
                       | term { $$ = $1; }
                       ;
 
-term : term MUL_OP factor
-     | term DIV_OP factor
-     | term MOD_OP factor
+term : term MUL_OP factor {
+            $$ = arithmeticOP($1, $3, '*');
+            $$->reference += 1;
+            deleteExtType($1);
+            deleteExtType($3);
+        }
+     | term DIV_OP factor {
+            $$ = arithmeticOP($1, $3, '/');
+            $$->reference += 1;
+            deleteExtType($1);
+            deleteExtType($3);
+        }
+     | term MOD_OP factor {
+            $$ = moduloOP($1, $3);
+            $$->reference += 1;
+            deleteExtType($1);
+            deleteExtType($3);
+        }
      | factor { $$ = $1; }
      ;
 
@@ -587,15 +643,18 @@ factor : variable_reference { $$ = $1; }
        | L_PAREN logical_expression R_PAREN { $$ = $2; }
        | ID L_PAREN logical_expression_list R_PAREN {
             $$ = findFuncForInvocation(symbolTableList->global, $1, $3);
+            $$->reference += 1;
             deleteExtTypeList($3);
             free($1);
         }
        | ID L_PAREN R_PAREN {
             $$ = findFuncForInvocation(symbolTableList->global, $1, NULL);
+            $$->reference += 1;
             free($1);
         }
        | literal_const {
-            $$ = createExtType($1->constVal->type, NULL, NULL);
+            $$ = createExtType($1->constVal->type, false, NULL);
+            $$->reference += 1;
             deleteAttribute($1);
         }
        ;
@@ -603,18 +662,26 @@ factor : variable_reference { $$ = $1; }
 variable_reference : array_list { $$ = $1; }
                    | ID {
                         $$ = findVariable(symbolTableList->tail, $1, 0);
+                        $$->reference += 1;
                         free($1);
                     }
                    ;
 
 array_list : ID dimension {
                 $$ = findVariable(symbolTableList->tail, $1, $2);
+                $$->reference += 1;
                 free($1);
             }
            ;
 
-dimension : dimension ML_BRACE logical_expression MR_BRACE { $$ = $1 + 1; }
-          | ML_BRACE logical_expression MR_BRACE { $$ = 1; }
+dimension : dimension ML_BRACE logical_expression MR_BRACE {
+                checkArrayIndex($3);
+                $$ = $1 + 1;
+            }
+          | ML_BRACE logical_expression MR_BRACE {
+                checkArrayIndex($2);
+                $$ = 1;
+            }
           ;
 
 scalar_type : INT { $$ = INT_t; }

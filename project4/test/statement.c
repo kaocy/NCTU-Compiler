@@ -1,9 +1,7 @@
-#pragma symbol on
-
 
 int main() {
 	int a[3];
-	read a;
+	read a; // error
 	print a[2];
 
 	double x;
@@ -19,10 +17,10 @@ int main() {
 
 	while(true) {
 		continue;
-		if (1) {
+		if (1) { // error
 			continue;
 		}
-		for (i=0; false; i=i+1) {
+		for (i=0; false; i=i+1) { // error
 			break;
 		}
 

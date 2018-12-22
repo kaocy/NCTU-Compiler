@@ -49,8 +49,15 @@ struct SymTableNode* findFuncDeclaration(struct SymTable* table, const char* nam
 struct ExtType* findFuncForInvocation(struct SymTable* table, const char* name, struct ExtType* head);
 struct ExtType* findVariable(struct SymTable* table, const char* name, int dimension_num);
 
+struct ExtType* arithmeticOP(struct ExtType* type1, struct ExtType* type2, const char op);
+struct ExtType* moduloOP(struct ExtType* type1, struct ExtType* type2);
+struct ExtType* logicalOP(struct ExtType* type1, struct ExtType* type2, const char* op);
+struct ExtType* logicalNotOP(struct ExtType* type1);
+struct ExtType* relationalOP(struct ExtType* type1, struct ExtType* type2, const char* op);
+
 int checkType(struct ExtType* type1, struct ExtType* type2, bool exact);
 int checkParameterForDefinition(struct FuncAttr* param1, struct FuncAttr* param2);
+
 void checkFunctionReturn(bool hasReturn);
 void checkFunctionReturnType(struct ExtType* type1, struct ExtType* type2);
 void checkUndeclaraFunction(struct SymTable* table);
@@ -59,3 +66,4 @@ void checkConditionalExpression(struct ExtType* type);
 void checkControlExpression(struct ExtType* type);
 void checkScalarType(struct ExtType* type);
 void checkAssignType(struct ExtType* type1, struct ExtType* type2);
+void checkArrayIndex(struct ExtType* type);

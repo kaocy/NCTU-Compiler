@@ -3,7 +3,7 @@
 #include <stdbool.h>
 
 typedef enum{ FUNCTION_t, PARAMETER_t, VARIABLE_t, CONSTANT_t } KIND;
-typedef enum{ INT_t, FLOAT_t, DOUBLE_t, BOOL_t, STRING_t, VOID_t } BTYPE;
+typedef enum{ INT_t, FLOAT_t, DOUBLE_t, BOOL_t, STRING_t, VOID_t, ERROR_t } BTYPE;
 
 struct ExtType { // All type, such as scalar and array
     int reference;
