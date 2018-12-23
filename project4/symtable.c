@@ -290,6 +290,7 @@ struct SymTable* deleteSymTable(struct SymTable* target) {
 
 int insertTableNode(struct SymTable *table, struct SymTableNode* newNode) {
     if (findRepeatDeclaration(table, newNode->name) != NULL) {
+        error = 1;
         printf("Error at Line #%d: '%s' is redeclared.\n", linenum, newNode->name);
         return -1;
     }
@@ -443,11 +444,17 @@ int connectVariableList(struct VariableList* list, struct Variable* node) {
     return 0;
 }
 
-struct Variable* createVariable(const char* name, struct ExtType* type) {
+struct Variable* createVariable(const char* name, struct ExtType* type, struct ExtType* valueType, struct ExtType* initArrayHead) {
     struct Variable* variable = (struct Variable*)malloc(sizeof(struct Variable));
     variable->name = strdup(name);
     variable->type = type;
     type->reference += 1;
+
+    variable->valueType = valueType;
+    if (variable->valueType != NULL)    variable->valueType->reference += 1;
+    variable->initArrayHead = initArrayHead;
+    if (variable->initArrayHead != NULL)    variable->initArrayHead->reference += 1;
+    
     variable->next = NULL;
     variable->reference = 0;
     return variable;
@@ -463,6 +470,8 @@ struct Variable* deleteVariable(struct Variable* target) {
         if (target->reference > 0) return NULL;
         free(target->name);
         deleteExtType(target->type);
+        deleteExtType(target->valueType);
+        deleteExtTypeList(target->initArrayHead);
         next = target->next;
         free(target);
     }
@@ -644,6 +653,10 @@ struct ArrayDimNode* createArrayDimNode(int size) {
     newNode->size = size;
     newNode->next = NULL;
     newNode->reference = 0;
+    if (size <= 0) {
+        error = 1;
+        printf("Error at Line #%d: The index must be greater than zero in array declaration.\n", linenum);
+    }
     return newNode;
 }
 
@@ -688,9 +701,11 @@ struct SymTableNode* findFuncDeclaration(struct SymTable* table, const char* nam
         if (temp->kind == FUNCTION_t) {
             if (strcmp(temp->name, name) == 0) {
                 if (temp->hasDefine) {
+                    error = 1;
                     printf("Error at Line #%d: '%s' is redeclared.\n", linenum, name);
                 }
                 if (!checkType(temp->type, type, true)) {
+                    error = 1;
                     printf("Error at Line #%d: Function '%s' has inconsistent type to its declaration.\n", linenum, name);
                 }
                 if (temp->attr == NULL && attr == NULL) {
@@ -699,6 +714,7 @@ struct SymTableNode* findFuncDeclaration(struct SymTable* table, const char* nam
                 }
                 if ((temp->attr == NULL || attr == NULL) ||
                     !checkParameterForDefinition(temp->attr->funcParam, attr->funcParam)) {
+                    error = 1;
                     printf("Error at Line #%d: Function '%s' has inconsistent parameter to its declaration.\n", linenum, name);
                 }
                 temp->hasDefine = true;
@@ -718,6 +734,7 @@ struct ExtType* findFuncForInvocation(struct SymTable* table, const char* name, 
                 // for those functions with no parameters
                 if (temp->attr == NULL) {
                     if (head != NULL) {
+                        error = 1;
                         printf("Error at Line #%d: The number of parameters must be identical to the function declaration/definition.\n", linenum);
                     }
                 }
@@ -725,12 +742,14 @@ struct ExtType* findFuncForInvocation(struct SymTable* table, const char* name, 
                     struct FuncAttrNode* param = temp->attr->funcParam->head;
                     while (param != NULL && head != NULL) {
                         if (!checkType(param->value, head, false)) {
+                            error = 1;
                             printf("Error at Line #%d: The type of parameters must be identical to the function declaration/definition.\n", linenum);
                         }
                         param = param->next;
                         head = head->next;
                     }
                     if (param != NULL || head != NULL) {
+                        error = 1;
                         printf("Error at Line #%d: The number of parameters must be identical to the function declaration/definition.\n", linenum);
                     }
                 }
@@ -739,16 +758,25 @@ struct ExtType* findFuncForInvocation(struct SymTable* table, const char* name, 
         }
         temp = temp->next;
     }
+    error = 1;
     printf("Error at Line #%d: '%s' has not been declared.\n", linenum, name);
     return createExtType(ERROR_t, false, NULL);
 }
 
-struct ExtType* findVariable(struct SymTable* table, const char* name, int dimension_num) {
+struct ExtType* findVariable(struct SymTable* table, const char* name, int dimension_num, bool* isConst) {
     while (table != NULL) {
         struct SymTableNode *temp = table->head;
         while (temp != NULL) {
+            if (temp->kind == CONSTANT_t) {
+                if (strcmp(temp->name, name) == 0) {
+                    *(isConst) = true;
+                    struct ExtType* type = temp->type;
+                    return createExtType(type->baseType, false, NULL);
+                }
+            }
             if (temp->kind == PARAMETER_t || temp->kind == VARIABLE_t) {
                 if (strcmp(temp->name, name) == 0) {
+                    *(isConst) = false;
                     struct ExtType* type = temp->type;
                     if (type->isArray) {
                         struct ArrayDimNode* dim = type->dimArray;
@@ -779,17 +807,20 @@ struct ExtType* findVariable(struct SymTable* table, const char* name, int dimen
         }
         table = table->prev;
     }
+    error = 1;
     printf("Error at Line #%d: '%s' has not been declared.\n", linenum, name);
     return createExtType(ERROR_t, false, NULL);
 }
 
 struct ExtType* arithmeticOP(struct ExtType* type1, struct ExtType* type2, const char op) {
     if (type1->isArray || type2->isArray) {
+        error = 1;
         printf("Error at Line #%d: Array arithmetic is not allowed.\n", linenum);
         return createExtType(ERROR_t, false, NULL);
     }
     if (type1->baseType == BOOL_t || type1->baseType == STRING_t || type1->baseType == VOID_t || type1->baseType == ERROR_t ||
         type2->baseType == BOOL_t || type2->baseType == STRING_t || type2->baseType == VOID_t || type2->baseType == ERROR_t) {
+        error = 1;
         printf("Error at Line #%d: The operand's type of '%c' is not valid.\n", linenum, op);
         return createExtType(ERROR_t, false, NULL);
     }
@@ -799,16 +830,19 @@ struct ExtType* arithmeticOP(struct ExtType* type1, struct ExtType* type2, const
     if (checkType(type2, type1, false)) {
         return createExtType(type2->baseType, type2->isArray, type2->dimArray); 
     }
+    error = 1;
     printf("Error at Line #%d: The operand's type of '%c' is not valid.\n", linenum, op);
     return createExtType(ERROR_t, false, NULL);
 }
 
 struct ExtType* moduloOP(struct ExtType* type1, struct ExtType* type2) {
     if (type1->isArray || type2->isArray) {
+        error = 1;
         printf("Error at Line #%d: Array arithmetic is not allowed.\n", linenum);
         return createExtType(ERROR_t, false, NULL);
     }
     if (type1->baseType != INT_t || type2->baseType != INT_t) {
+        error = 1;
         printf("Error at Line #%d: The operand's type of '%%' is not valid.\n", linenum);
         return createExtType(ERROR_t, false, NULL);
     }
@@ -817,10 +851,12 @@ struct ExtType* moduloOP(struct ExtType* type1, struct ExtType* type2) {
 
 struct ExtType* logicalOP(struct ExtType* type1, struct ExtType* type2, const char* op) {
     if (type1->isArray || type2->isArray) {
+        error = 1;
         printf("Error at Line #%d: Array arithmetic is not allowed.\n", linenum);
         return createExtType(ERROR_t, false, NULL);
     }
     if (type1->baseType != BOOL_t || type2->baseType != BOOL_t) {
+        error = 1;
         printf("Error at Line #%d: The operand's type of '%s' is not valid.\n", linenum, op);
         return createExtType(ERROR_t, false, NULL);
     }
@@ -829,10 +865,12 @@ struct ExtType* logicalOP(struct ExtType* type1, struct ExtType* type2, const ch
 
 struct ExtType* logicalNotOP(struct ExtType* type1) {
     if (type1->isArray) {
+        error = 1;
         printf("Error at Line #%d: Array arithmetic is not allowed.\n", linenum);
         return createExtType(ERROR_t, false, NULL);
     }
     if (type1->baseType != BOOL_t) {
+        error = 1;
         printf("Error at Line #%d: The operand's type of '!' is not valid.\n", linenum);
         return createExtType(ERROR_t, false, NULL);
     }
@@ -841,11 +879,13 @@ struct ExtType* logicalNotOP(struct ExtType* type1) {
 
 struct ExtType* relationalOP(struct ExtType* type1, struct ExtType* type2, const char* op) {
     if (type1->isArray || type2->isArray) {
+        error = 1;
         printf("Error at Line #%d: Array arithmetic is not allowed.\n", linenum);
         return createExtType(ERROR_t, false, NULL);
     }
     if (type1->baseType == STRING_t || type1->baseType == VOID_t || type1->baseType == ERROR_t ||
         type2->baseType == STRING_t || type2->baseType == VOID_t || type2->baseType == ERROR_t) {
+        error = 1;
         printf("Error at Line #%d: The operand's type of '%s' is not valid.\n", linenum, op);
         return createExtType(ERROR_t, false, NULL);
     }
@@ -854,6 +894,7 @@ struct ExtType* relationalOP(struct ExtType* type1, struct ExtType* type2, const
             return createExtType(BOOL_t, false, NULL);
         }
         else {
+            error = 1;
             printf("Error at Line #%d: The operand's type of '%s' is not valid.\n", linenum, op);
             return createExtType(ERROR_t, false, NULL);
         }
@@ -864,6 +905,7 @@ struct ExtType* relationalOP(struct ExtType* type1, struct ExtType* type2, const
     if (checkType(type2, type1, false)) {
         return createExtType(BOOL_t, false, NULL); 
     }
+    error = 1;
     printf("Error at Line #%d: The operand's type of '%s' is not valid.\n", linenum, op);
     return createExtType(ERROR_t, false, NULL);
 }
@@ -921,12 +963,14 @@ int checkParameterForDefinition(struct FuncAttr* param1, struct FuncAttr* param2
 
 void checkFunctionReturn(bool hasReturn) {
     if (!hasReturn) {
+        error = 1;
         printf("Error at Line #%d: Non-void type function should have return in the last line.\n", linenum);
     }
 }
 
 void checkFunctionReturnType(struct ExtType* type1, struct ExtType* type2) {
     if (!checkType(type1, type2, false)) {
+        error = 1;
         printf("Error at Line #%d: The type of return statement must match the function type.\n", linenum);
     }
 }
@@ -936,6 +980,7 @@ void checkUndeclaraFunction(struct SymTable* table) {
     while (temp != NULL) {
         if (temp->kind == FUNCTION_t) {
             if (!temp->hasDefine) {
+                error = 1;
                 printf("Error at Line #%d: Function '%s' is not defined.\n", linenum, temp->name);
             }
         }
@@ -945,18 +990,21 @@ void checkUndeclaraFunction(struct SymTable* table) {
 
 void checkInLoop(int inLoop, char *statement) {
     if (inLoop <= 0) {
+        error = 1;
         printf("Error at Line #%d: '%s' can only appear in loop statements.\n", linenum, statement);
     }
 }
 
 void checkConditionalExpression(struct ExtType* type) {
     if (type->baseType != BOOL_t) {
+        error = 1;
         printf("Error at Line #%d: Conditional expression must be Boolean type.\n", linenum);
     }
 }
 
 void checkControlExpression(struct ExtType* type) {
     if (type->baseType != BOOL_t) {
+        error = 1;
         printf("Error at Line #%d: Control expression must be Boolean type.\n", linenum);
     }
 }
@@ -964,21 +1012,79 @@ void checkControlExpression(struct ExtType* type) {
 void checkScalarType(struct ExtType* type) {
     // for print and read statement
     if (type->isArray) {
+        error = 1;
         printf("Error at Line #%d: Variable references in print and read statements must be scalar type.\n", linenum);
     }
 }
 
-void checkAssignType(struct ExtType* type1, struct ExtType* type2) {
+void checkAssignType(struct ExtType* type1, struct ExtType* type2, bool isConst) {
+    if (isConst) {
+        error = 1;
+        printf("Error at Line #%d: Re-assignment to constant is not allowed.\n", linenum);
+    }
     if (type1->isArray || type2->isArray) {
+        error = 1;
         printf("Error at Line #%d: Array assignment is not allowed.\n", linenum);
     }
     else if (!checkType(type1, type2, false)) {
+        error = 1;
         printf("Error at Line #%d: The operand's type of '=' is not valid.\n", linenum);
     }
 }
 
+void checkVariableInitialization(struct ExtType* type1, struct ExtType* type2) {
+    if (!checkType(type1, type2, false)) {
+        error = 1;
+        printf("Error at Line #%d: The type of variable initial value in not valid.\n", linenum);
+    }
+}
+
+void checkConstantInitialization(BTYPE baseType1, BTYPE baseType2) {
+    struct ExtType* type1 = createExtType(baseType1, false, NULL);
+    struct ExtType* type2 = createExtType(baseType2, false, NULL);
+    type1->reference += 1;
+    type2->reference += 1;
+    if (!checkType(type1, type2, false)) {
+        error = 1;
+        printf("Error at Line #%d: The type of constant initial value in not valid.\n", linenum);
+    }
+    deleteExtType(type1);
+    deleteExtType(type2);
+}
+
+void checkArrayInitialization(struct ExtType* type, struct ExtType* typehead) {
+    int element_num = 1;
+    struct ArrayDimNode* temp = type->dimArray;
+    // get the max element number of array
+    while (temp != NULL) {
+        element_num *= temp->size;
+        temp = temp->next;
+    }
+
+    temp = type->dimArray;
+    // temporarily change due to array variable with isArray and dimArray
+    type->isArray = false;
+    type->dimArray = NULL;
+    while (typehead != NULL) {
+        if (!checkType(type, typehead, false)) {
+            error = 1;
+            printf("Error at Line #%d: The type of element in initial array in not valid.\n", linenum);
+        }
+        --element_num;
+        if (element_num < 0) {
+            error = 1;
+            printf("Error at Line #%d: The number of element in initial array must be equal to or less than the array size.\n", linenum);
+        }
+        typehead = typehead->next;
+    }
+    // recover
+    type->isArray = true;
+    type->dimArray = temp;
+}
+
 void checkArrayIndex(struct ExtType* type) {
     if (type->baseType != INT_t) {
+        error = 1;
         printf("Error at Line #%d: The index of array reference must be integer type.\n", linenum);
     }
 }

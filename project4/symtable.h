@@ -1,6 +1,7 @@
 #include "datatype.h"
 
 extern int linenum;
+extern int error;
 
 int printSymTable(struct SymTable* table);
 int printType(struct ExtType* extType);
@@ -25,7 +26,7 @@ struct SymTableNode* createParameterNode(const char* name, int level, struct Ext
 struct VariableList* createVariableList(struct Variable* head);
 int deleteVariableList(struct VariableList* list);
 int connectVariableList(struct VariableList* list, struct Variable* node);
-struct Variable* createVariable(const char* name, struct ExtType* type);
+struct Variable* createVariable(const char* name, struct ExtType* type, struct ExtType* valueType, struct ExtType* initArrayHead);
 struct Variable* deleteVariable(struct Variable* target);
 
 struct Attribute* createConstantAttribute(BTYPE type,void* value);
@@ -47,7 +48,7 @@ struct ArrayDimNode* deleteArrayDimNode(struct ArrayDimNode* target);
 struct SymTableNode* findRepeatDeclaration(struct SymTable* table, const char* name);
 struct SymTableNode* findFuncDeclaration(struct SymTable* table, const char* name, struct ExtType* type, struct Attribute* attr);
 struct ExtType* findFuncForInvocation(struct SymTable* table, const char* name, struct ExtType* head);
-struct ExtType* findVariable(struct SymTable* table, const char* name, int dimension_num);
+struct ExtType* findVariable(struct SymTable* table, const char* name, int dimension_num, bool* isConst);
 
 struct ExtType* arithmeticOP(struct ExtType* type1, struct ExtType* type2, const char op);
 struct ExtType* moduloOP(struct ExtType* type1, struct ExtType* type2);
@@ -65,5 +66,8 @@ void checkInLoop(int inLoop, char *statement);
 void checkConditionalExpression(struct ExtType* type);
 void checkControlExpression(struct ExtType* type);
 void checkScalarType(struct ExtType* type);
-void checkAssignType(struct ExtType* type1, struct ExtType* type2);
+void checkAssignType(struct ExtType* type1, struct ExtType* type2, bool isConst);
+void checkVariableInitialization(struct ExtType* type1, struct ExtType* type2);
+void checkConstantInitialization(BTYPE baseType1, BTYPE baseType2);
+void checkArrayInitialization(struct ExtType* type, struct ExtType* typehead);
 void checkArrayIndex(struct ExtType* type);

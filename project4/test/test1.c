@@ -11,6 +11,7 @@ void main() {
 		double z, z = 0.0;
 		z = 0.1;
 	}
+	return "a";
 }
 
 bool func (int a, float b) {

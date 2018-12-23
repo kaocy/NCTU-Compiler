@@ -7,6 +7,7 @@
 extern int yyparse();
 extern FILE* yyin;
 extern struct SymTableList *symbolTableList;
+int error = 0;
 
 int main(int argc, char **argv) {
 
@@ -32,10 +33,17 @@ int main(int argc, char **argv) {
     yyparse(); /* primary procedure of parser */
 
     destroySymTableList(symbolTableList);
-    fprintf(stdout, "\n");
-    fprintf(stdout, "|--------------------------------|\n");
-    fprintf(stdout, "|  There is no syntactic error!  |\n");
-    fprintf(stdout, "|--------------------------------|\n");
+    
+    if (!error) {
+        fprintf(stdout, "\n");
+        fprintf(stdout, "|---------------------------------------------|\n");
+        fprintf(stdout, "|  There is no syntactic and semantic error!  |\n");
+        fprintf(stdout, "|---------------------------------------------|\n");
+    }
+    // fprintf(stdout, "\n");
+    // fprintf(stdout, "|--------------------------------|\n");
+    // fprintf(stdout, "|  There is no syntactic error!  |\n");
+    // fprintf(stdout, "|--------------------------------|\n");
     exit(0);
 }
 

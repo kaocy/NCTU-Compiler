@@ -20,6 +20,7 @@ struct SymTableList *symbolTableList; // create and initialize in main.c
 struct ExtType *funcReturnType;
 bool hasReturn; // check non-void function last line is return
 int inLoop = 0; // check whether in loop
+bool isConst;
 %}
 
 %union {
@@ -55,6 +56,9 @@ int inLoop = 0; // check whether in loop
 %type <attribute> literal_const 
 %type <symTableNode> const_list
 %type <bType> scalar_type
+
+%type <extType> literal_list
+%type <extType> initial_array
 
 %type <extType> logical_expression_list
 %type <extType> logical_expression
@@ -300,6 +304,14 @@ var_decl : scalar_type identifier_list SEMICOLON {
                 while (listNode != NULL) {
                     newNode = createVariableNode(listNode->name, scope, listNode->type);
                     newNode->type->baseType = $1;
+                    // check initial value type
+                    if (listNode->valueType != NULL) {
+                        checkVariableInitialization(newNode->type, listNode->valueType);
+                    }
+                    // check initial array type
+                    if (listNode->initArrayHead != NULL) {
+                        checkArrayInitialization(newNode->type, listNode->initArrayHead);
+                    }
                     insertTableNode(symbolTableList->tail, newNode);
                     listNode = listNode->next;
                 }
@@ -307,33 +319,36 @@ var_decl : scalar_type identifier_list SEMICOLON {
             }
          ;
 
-identifier_list : identifier_list COMMA ID {
+identifier_list : identifier_list COMMA ID ASSIGN_OP logical_expression {
                     struct ExtType *type = createExtType(VOID, false, NULL); // type unknown here
-                    struct Variable *newVariable = createVariable($3, type);
+                    $5->reference -= 1; // due to createVariable
+                    struct Variable *newVariable = createVariable($3, type, $5, NULL);
                     free($3);
                     connectVariableList($1, newVariable);
                     $$ = $1;
                 }
-                | identifier_list COMMA ID ASSIGN_OP logical_expression {
+                | identifier_list COMMA ID {
                     struct ExtType *type = createExtType(VOID, false, NULL); // type unknown here
-                    struct Variable *newVariable = createVariable($3, type);
+                    struct Variable *newVariable = createVariable($3, type, NULL, NULL);
                     free($3);
                     connectVariableList($1, newVariable);
                     $$ = $1;
                 }
                 | ID ASSIGN_OP logical_expression {  
                     struct ExtType *type = createExtType(VOID, false, NULL); // type unknown here
-                    struct Variable *newVariable = createVariable($1, type);
+                    $3->reference -= 1; // due to createVariable
+                    struct Variable *newVariable = createVariable($1, type, $3, NULL);
                     $$ = createVariableList(newVariable);
                     free($1);
                 }
                 | ID {
                     struct ExtType *type = createExtType(VOID, false, NULL); // type unknown here
-                    struct Variable *newVariable = createVariable($1, type);
+                    struct Variable *newVariable = createVariable($1, type, NULL, NULL);
                     $$ = createVariableList(newVariable);
                     free($1);
                 }
                 | identifier_list COMMA array_decl ASSIGN_OP initial_array {
+                    $3->initArrayHead = $5;
                     connectVariableList($1, $3);
                     $$ = $1;
                 }
@@ -342,6 +357,7 @@ identifier_list : identifier_list COMMA ID {
                     $$ = $1;
                 }
                 | array_decl ASSIGN_OP initial_array {
+                    $1->initArrayHead = $3;
                     $$ = createVariableList($1);
                 }
                 | array_decl {
@@ -351,7 +367,7 @@ identifier_list : identifier_list COMMA ID {
 
 array_decl : ID dim {
                 struct ExtType *type = createExtType(VOID, true, $2); // type unknown here
-                struct Variable *newVariable = createVariable($1, type);
+                struct Variable *newVariable = createVariable($1, type, NULL, NULL);
                 free($1);
                 $$ = newVariable;
             }
@@ -366,12 +382,16 @@ dim : dim ML_BRACE INT_CONST MR_BRACE {
     }
     ;
 
-initial_array : L_BRACE literal_list R_BRACE
+initial_array : L_BRACE literal_list R_BRACE { $$ = $2; }
               ;
 
-literal_list : literal_list COMMA logical_expression
-             | logical_expression
-             | 
+literal_list : literal_list COMMA logical_expression {
+                    $3->reference -= 1; // in connect, reference += 1
+                    connectExtType($1, $3);
+                    $$ = $1;
+                }
+             | logical_expression { $$ = $1; }
+             | { $$ = NULL; }
              ;
 
 const_decl : CONST scalar_type const_list SEMICOLON {
@@ -380,9 +400,12 @@ const_decl : CONST scalar_type const_list SEMICOLON {
                 while (list->next != NULL) {
                     struct SymTableNode *temp = list->next;
                     list->next = NULL;
+                    checkConstantInitialization($2, list->attr->constVal->type);
                     insertTableNode(symbolTableList->tail, list);
                     list = temp;
                 }
+                // for last node
+                checkConstantInitialization($2, list->attr->constVal->type);
                 insertTableNode(symbolTableList->tail, list);
             }
            ;
@@ -433,7 +456,8 @@ compound_statement : L_BRACE  { // enter a new scope
                    ;    
 
 simple_statement : variable_reference ASSIGN_OP logical_expression SEMICOLON {
-                        checkAssignType($1, $3);
+                        checkAssignType($1, $3, isConst);
+                        isConst = false;
                         deleteExtType($1);
                         deleteExtType($3);
                     }
@@ -502,7 +526,8 @@ boolean_expression : logical_expression {
 
 initial_expression : logical_expression
                    | variable_reference ASSIGN_OP logical_expression {
-                        checkAssignType($1, $3);
+                        checkAssignType($1, $3, isConst);
+                        isConst = false;
                         deleteExtType($1);
                         deleteExtType($3);
                     }
@@ -511,12 +536,19 @@ control_expression : logical_expression {
                         checkControlExpression($1);
                         deleteExtType($1);
                     }
-                   | variable_reference ASSIGN_OP logical_expression
+                   | variable_reference ASSIGN_OP logical_expression {
+                        checkAssignType($1, $3, isConst);
+                        isConst = false;
+                        checkControlExpression($1);
+                        deleteExtType($1);
+                        deleteExtType($3);
+                    }
                    ;
 
 increment_expression : logical_expression
                      | variable_reference ASSIGN_OP logical_expression {
-                            checkAssignType($1, $3);
+                            checkAssignType($1, $3, isConst);
+                            isConst = false;
                             deleteExtType($1);
                             deleteExtType($3);
                         }
@@ -661,14 +693,14 @@ factor : variable_reference { $$ = $1; }
 
 variable_reference : array_list { $$ = $1; }
                    | ID {
-                        $$ = findVariable(symbolTableList->tail, $1, 0);
+                        $$ = findVariable(symbolTableList->tail, $1, 0, &isConst);
                         $$->reference += 1;
                         free($1);
                     }
                    ;
 
 array_list : ID dimension {
-                $$ = findVariable(symbolTableList->tail, $1, $2);
+                $$ = findVariable(symbolTableList->tail, $1, $2, &isConst);
                 $$->reference += 1;
                 free($1);
             }

@@ -18,6 +18,8 @@ struct Variable {
     int reference;
     char* name;
     struct ExtType* type;
+    struct ExtType* valueType;
+    struct ExtType* initArrayHead;
     struct Variable* next;
 };
 
