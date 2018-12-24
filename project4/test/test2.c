@@ -2,7 +2,7 @@
 
 int gcd (int n, int m);
 
-bool func (int a[33][2][3], float b[2][11], int a) {
+bool func (int a[33][2][3], bool b, int a) {
 	int a;
 	while (1) {
 		int x[33][2][3], y[2][11];

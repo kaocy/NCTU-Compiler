@@ -1,10 +1,10 @@
 
 double foo(){
-	int a[3] = {1,2,3}; // legal
-	int b[4] = {1,2,3,4,5}; // illegal
-	int c[2][3] = {1,2,3,4,5,6,7}; // illegal
-	int d[0] = {1}; // illegal
-	int e = "This is a string"; // illegal
+	double a[3] = {1,2,3};
+	int b[4] = {1,2,3,4,5}; // error
+	int c[2][3] = {1,2,3,4,5,6,7}; // error
+	bool d[0] = {1}; // 3 error
+	int e = "This is a string"; // error
 
 	int w = 1.0; // error
 	float x = 1;
@@ -28,8 +28,9 @@ void foo2() {
 	const string s="hello";
 	float x;
 
-	a = 1;
-	x = 0;
-	c = 2;
-	a = 1.0;
+	for (a=1; a<0; a=x) { // error
+		c = 2; // error
+		x = 0;
+		a = x; // 2 error
+	}
 }

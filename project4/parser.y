@@ -20,7 +20,7 @@ struct SymTableList *symbolTableList; // create and initialize in main.c
 struct ExtType *funcReturnType;
 bool hasReturn; // check non-void function last line is return
 int inLoop = 0; // check whether in loop
-bool isConst;
+KIND varKind;
 %}
 
 %union {
@@ -148,7 +148,7 @@ decl_and_def_list : decl_and_def_list var_decl
                   ;
 
 funct_def : scalar_type ID L_PAREN R_PAREN {
-                funcReturnType = createExtType($1, false, NULL);
+                funcReturnType = createExtType($1, false, NULL, EXPRESSION_t);
                 struct SymTableNode* node = findFuncDeclaration(symbolTableList->global, $2, funcReturnType, NULL);
                 //no declaration yet
                 if (node == NULL) {
@@ -159,7 +159,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
             }
             compound_statement { checkFunctionReturn(hasReturn); }
           | scalar_type ID L_PAREN parameter_list R_PAREN {
-                funcReturnType = createExtType($1, false, NULL);
+                funcReturnType = createExtType($1, false, NULL, EXPRESSION_t);
                 struct Attribute *attr = createFunctionAttribute($4);
                 struct SymTableNode* node = findFuncDeclaration(symbolTableList->global, $2, funcReturnType, attr);
                 // no declaration yet
@@ -188,7 +188,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
                 free($2);
             }
           | VOID ID L_PAREN R_PAREN {
-                funcReturnType = createExtType(VOID_t, false, NULL);
+                funcReturnType = createExtType(VOID_t, false, NULL, EXPRESSION_t);
                 struct SymTableNode *node = findFuncDeclaration(symbolTableList->global, $2, funcReturnType, NULL);
                 // no declaration yet
                 if (node == NULL) {
@@ -199,7 +199,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
             }
             compound_statement
           | VOID ID L_PAREN parameter_list R_PAREN {
-                funcReturnType = createExtType(VOID_t, false, NULL);
+                funcReturnType = createExtType(VOID_t, false, NULL, EXPRESSION_t);
                 struct Attribute *attr = createFunctionAttribute($4);
                 struct SymTableNode *node = findFuncDeclaration(symbolTableList->global, $2, funcReturnType, attr);
                 // no declaration yet
@@ -229,26 +229,26 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
           ;
 
 funct_decl : scalar_type ID L_PAREN R_PAREN SEMICOLON {
-                funcReturnType = createExtType($1, false, NULL);
+                funcReturnType = createExtType($1, false, NULL, EXPRESSION_t);
                 struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL, false);
                 insertTableNode(symbolTableList->global, newNode);
                 free($2);
             }
            | scalar_type ID L_PAREN parameter_list R_PAREN SEMICOLON {
-                funcReturnType = createExtType($1, false, NULL);
+                funcReturnType = createExtType($1, false, NULL, EXPRESSION_t);
                 struct Attribute *attr = createFunctionAttribute($4);
                 struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr, false);
                 insertTableNode(symbolTableList->global, newNode);
                 free($2);
             }
            | VOID ID L_PAREN R_PAREN SEMICOLON {
-                funcReturnType = createExtType(VOID_t, false, NULL);
+                funcReturnType = createExtType(VOID_t, false, NULL, EXPRESSION_t);
                 struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL, false);
                 insertTableNode(symbolTableList->global, newNode);
                 free($2);
             }
            | VOID ID L_PAREN parameter_list R_PAREN SEMICOLON {
-                funcReturnType = createExtType(VOID_t, false, NULL);
+                funcReturnType = createExtType(VOID_t, false, NULL, EXPRESSION_t);
                 struct Attribute *attr = createFunctionAttribute($4);
                 struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr, false);
                 insertTableNode(symbolTableList->global, newNode);
@@ -258,7 +258,7 @@ funct_decl : scalar_type ID L_PAREN R_PAREN SEMICOLON {
 
 parameter_list : parameter_list COMMA scalar_type ID {
                     struct FuncAttrNode *newNode = (struct FuncAttrNode*)malloc(sizeof(struct FuncAttrNode));
-                    newNode->value = createExtType($3, false, NULL);
+                    newNode->value = createExtType($3, false, NULL, PARAMETER_t);
                     newNode->name = strdup($4);
                     newNode->next = NULL;
                     free($4);              
@@ -278,7 +278,7 @@ parameter_list : parameter_list COMMA scalar_type ID {
                 }
                | scalar_type ID {
                     struct FuncAttrNode *newNode = (struct FuncAttrNode*)malloc(sizeof(struct FuncAttrNode));
-                    newNode->value = createExtType($1, false, NULL);
+                    newNode->value = createExtType($1, false, NULL, PARAMETER_t);
                     newNode->name = strdup($2);
                     newNode->next = NULL;
                     free($2);  
@@ -320,7 +320,7 @@ var_decl : scalar_type identifier_list SEMICOLON {
          ;
 
 identifier_list : identifier_list COMMA ID ASSIGN_OP logical_expression {
-                    struct ExtType *type = createExtType(VOID, false, NULL); // type unknown here
+                    struct ExtType *type = createExtType(VOID, false, NULL, VARIABLE_t); // type unknown here
                     $5->reference -= 1; // due to createVariable
                     struct Variable *newVariable = createVariable($3, type, $5, NULL);
                     free($3);
@@ -328,21 +328,21 @@ identifier_list : identifier_list COMMA ID ASSIGN_OP logical_expression {
                     $$ = $1;
                 }
                 | identifier_list COMMA ID {
-                    struct ExtType *type = createExtType(VOID, false, NULL); // type unknown here
+                    struct ExtType *type = createExtType(VOID, false, NULL, VARIABLE_t); // type unknown here
                     struct Variable *newVariable = createVariable($3, type, NULL, NULL);
                     free($3);
                     connectVariableList($1, newVariable);
                     $$ = $1;
                 }
                 | ID ASSIGN_OP logical_expression {  
-                    struct ExtType *type = createExtType(VOID, false, NULL); // type unknown here
+                    struct ExtType *type = createExtType(VOID, false, NULL, VARIABLE_t); // type unknown here
                     $3->reference -= 1; // due to createVariable
                     struct Variable *newVariable = createVariable($1, type, $3, NULL);
                     $$ = createVariableList(newVariable);
                     free($1);
                 }
                 | ID {
-                    struct ExtType *type = createExtType(VOID, false, NULL); // type unknown here
+                    struct ExtType *type = createExtType(VOID, false, NULL, VARIABLE_t); // type unknown here
                     struct Variable *newVariable = createVariable($1, type, NULL, NULL);
                     $$ = createVariableList(newVariable);
                     free($1);
@@ -366,7 +366,7 @@ identifier_list : identifier_list COMMA ID ASSIGN_OP logical_expression {
                 ;
 
 array_decl : ID dim {
-                struct ExtType *type = createExtType(VOID, true, $2); // type unknown here
+                struct ExtType *type = createExtType(VOID, true, $2, VARIABLE_t); // type unknown here
                 struct Variable *newVariable = createVariable($1, type, NULL, NULL);
                 free($1);
                 $$ = newVariable;
@@ -411,7 +411,7 @@ const_decl : CONST scalar_type const_list SEMICOLON {
            ;
 
 const_list : const_list COMMA ID ASSIGN_OP literal_const {
-                struct ExtType *type = createExtType($5->constVal->type, false, NULL);
+                struct ExtType *type = createExtType($5->constVal->type, false, NULL, CONSTANT_t);
                 struct SymTableNode *temp = $1;
                 while (temp->next != NULL) {
                     temp = temp->next;
@@ -420,7 +420,7 @@ const_list : const_list COMMA ID ASSIGN_OP literal_const {
                 free($3);
             }
            | ID ASSIGN_OP literal_const {
-                struct ExtType *type = createExtType($3->constVal->type, false, NULL);
+                struct ExtType *type = createExtType($3->constVal->type, false, NULL, CONSTANT_t);
                 $$ = createConstNode($1, scope, type, $3); 
                 free($1);
             }    
@@ -456,8 +456,7 @@ compound_statement : L_BRACE  { // enter a new scope
                    ;    
 
 simple_statement : variable_reference ASSIGN_OP logical_expression SEMICOLON {
-                        checkAssignType($1, $3, isConst);
-                        isConst = false;
+                        checkAssignType($1, $3);
                         deleteExtType($1);
                         deleteExtType($3);
                     }
@@ -526,8 +525,7 @@ boolean_expression : logical_expression {
 
 initial_expression : logical_expression
                    | variable_reference ASSIGN_OP logical_expression {
-                        checkAssignType($1, $3, isConst);
-                        isConst = false;
+                        checkAssignType($1, $3);
                         deleteExtType($1);
                         deleteExtType($3);
                     }
@@ -537,8 +535,7 @@ control_expression : logical_expression {
                         deleteExtType($1);
                     }
                    | variable_reference ASSIGN_OP logical_expression {
-                        checkAssignType($1, $3, isConst);
-                        isConst = false;
+                        checkAssignType($1, $3);
                         checkControlExpression($1);
                         deleteExtType($1);
                         deleteExtType($3);
@@ -547,8 +544,7 @@ control_expression : logical_expression {
 
 increment_expression : logical_expression
                      | variable_reference ASSIGN_OP logical_expression {
-                            checkAssignType($1, $3, isConst);
-                            isConst = false;
+                            checkAssignType($1, $3);
                             deleteExtType($1);
                             deleteExtType($3);
                         }
@@ -685,7 +681,7 @@ factor : variable_reference { $$ = $1; }
             free($1);
         }
        | literal_const {
-            $$ = createExtType($1->constVal->type, false, NULL);
+            $$ = createExtType($1->constVal->type, false, NULL, EXPRESSION_t);
             $$->reference += 1;
             deleteAttribute($1);
         }
@@ -693,14 +689,14 @@ factor : variable_reference { $$ = $1; }
 
 variable_reference : array_list { $$ = $1; }
                    | ID {
-                        $$ = findVariable(symbolTableList->tail, $1, 0, &isConst);
+                        $$ = findVariable(symbolTableList->tail, $1, 0);
                         $$->reference += 1;
                         free($1);
                     }
                    ;
 
 array_list : ID dimension {
-                $$ = findVariable(symbolTableList->tail, $1, $2, &isConst);
+                $$ = findVariable(symbolTableList->tail, $1, $2);
                 $$->reference += 1;
                 free($1);
             }

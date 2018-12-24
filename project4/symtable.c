@@ -594,12 +594,13 @@ struct FuncAttrNode* deleteFuncAttrNode(struct FuncAttrNode* target) {
     return next;
 }
 
-struct ExtType* createExtType(BTYPE baseType, bool isArray, struct ArrayDimNode* dimArray) {
+struct ExtType* createExtType(BTYPE baseType, bool isArray, struct ArrayDimNode* dimArray, KIND varKind) {
     int dimNum = 0;
     struct ArrayDimNode *temp = dimArray;
     struct ExtType *newExtType = (struct ExtType*)malloc(sizeof(struct ExtType));
     newExtType->baseType = baseType;
     newExtType->isArray = isArray;
+    newExtType->varKind = varKind;
 
     newExtType->dimArray = dimArray;
     if (dimArray != NULL)  dimArray->reference += 1;
@@ -753,30 +754,28 @@ struct ExtType* findFuncForInvocation(struct SymTable* table, const char* name, 
                         printf("Error at Line #%d: The number of parameters must be identical to the function declaration/definition.\n", linenum);
                     }
                 }
-                return createExtType(temp->type->baseType, false, NULL);
+                return createExtType(temp->type->baseType, false, NULL, EXPRESSION_t);
             }
         }
         temp = temp->next;
     }
     error = 1;
     printf("Error at Line #%d: '%s' has not been declared.\n", linenum, name);
-    return createExtType(ERROR_t, false, NULL);
+    return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
 }
 
-struct ExtType* findVariable(struct SymTable* table, const char* name, int dimension_num, bool* isConst) {
+struct ExtType* findVariable(struct SymTable* table, const char* name, int dimension_num) {
     while (table != NULL) {
         struct SymTableNode *temp = table->head;
         while (temp != NULL) {
             if (temp->kind == CONSTANT_t) {
                 if (strcmp(temp->name, name) == 0) {
-                    *(isConst) = true;
                     struct ExtType* type = temp->type;
-                    return createExtType(type->baseType, false, NULL);
+                    return createExtType(type->baseType, false, NULL, temp->kind);
                 }
             }
             if (temp->kind == PARAMETER_t || temp->kind == VARIABLE_t) {
                 if (strcmp(temp->name, name) == 0) {
-                    *(isConst) = false;
                     struct ExtType* type = temp->type;
                     if (type->isArray) {
                         struct ArrayDimNode* dim = type->dimArray;
@@ -794,13 +793,13 @@ struct ExtType* findVariable(struct SymTable* table, const char* name, int dimen
                         }
 
                         if (dim != NULL) {
-                            return createExtType(type->baseType, true, dim);
+                            return createExtType(type->baseType, true, dim, temp->kind);
                         }
                         else {
-                            return createExtType(type->baseType, false, NULL);
+                            return createExtType(type->baseType, false, NULL, temp->kind);
                         }
                     }
-                    return createExtType(type->baseType, false, NULL);
+                    return createExtType(type->baseType, false, NULL, temp->kind);
                 }
             }
             temp = temp->next;
@@ -809,105 +808,105 @@ struct ExtType* findVariable(struct SymTable* table, const char* name, int dimen
     }
     error = 1;
     printf("Error at Line #%d: '%s' has not been declared.\n", linenum, name);
-    return createExtType(ERROR_t, false, NULL);
+    return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
 }
 
 struct ExtType* arithmeticOP(struct ExtType* type1, struct ExtType* type2, const char op) {
     if (type1->isArray || type2->isArray) {
         error = 1;
         printf("Error at Line #%d: Array arithmetic is not allowed.\n", linenum);
-        return createExtType(ERROR_t, false, NULL);
+        return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
     }
     if (type1->baseType == BOOL_t || type1->baseType == STRING_t || type1->baseType == VOID_t || type1->baseType == ERROR_t ||
         type2->baseType == BOOL_t || type2->baseType == STRING_t || type2->baseType == VOID_t || type2->baseType == ERROR_t) {
         error = 1;
         printf("Error at Line #%d: The operand's type of '%c' is not valid.\n", linenum, op);
-        return createExtType(ERROR_t, false, NULL);
+        return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
     }
     if (checkType(type1, type2, false)) {
-        return createExtType(type1->baseType, type1->isArray, type1->dimArray); 
+        return createExtType(type1->baseType, type1->isArray, type1->dimArray, EXPRESSION_t); 
     }
     if (checkType(type2, type1, false)) {
-        return createExtType(type2->baseType, type2->isArray, type2->dimArray); 
+        return createExtType(type2->baseType, type2->isArray, type2->dimArray, EXPRESSION_t); 
     }
     error = 1;
     printf("Error at Line #%d: The operand's type of '%c' is not valid.\n", linenum, op);
-    return createExtType(ERROR_t, false, NULL);
+    return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
 }
 
 struct ExtType* moduloOP(struct ExtType* type1, struct ExtType* type2) {
     if (type1->isArray || type2->isArray) {
         error = 1;
         printf("Error at Line #%d: Array arithmetic is not allowed.\n", linenum);
-        return createExtType(ERROR_t, false, NULL);
+        return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
     }
     if (type1->baseType != INT_t || type2->baseType != INT_t) {
         error = 1;
         printf("Error at Line #%d: The operand's type of '%%' is not valid.\n", linenum);
-        return createExtType(ERROR_t, false, NULL);
+        return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
     }
-    return createExtType(INT_t, false, NULL);
+    return createExtType(INT_t, false, NULL, EXPRESSION_t);
 }
 
 struct ExtType* logicalOP(struct ExtType* type1, struct ExtType* type2, const char* op) {
     if (type1->isArray || type2->isArray) {
         error = 1;
         printf("Error at Line #%d: Array arithmetic is not allowed.\n", linenum);
-        return createExtType(ERROR_t, false, NULL);
+        return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
     }
     if (type1->baseType != BOOL_t || type2->baseType != BOOL_t) {
         error = 1;
         printf("Error at Line #%d: The operand's type of '%s' is not valid.\n", linenum, op);
-        return createExtType(ERROR_t, false, NULL);
+        return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
     }
-    return createExtType(BOOL_t, false, NULL);
+    return createExtType(BOOL_t, false, NULL, EXPRESSION_t);
 }
 
 struct ExtType* logicalNotOP(struct ExtType* type1) {
     if (type1->isArray) {
         error = 1;
         printf("Error at Line #%d: Array arithmetic is not allowed.\n", linenum);
-        return createExtType(ERROR_t, false, NULL);
+        return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
     }
     if (type1->baseType != BOOL_t) {
         error = 1;
         printf("Error at Line #%d: The operand's type of '!' is not valid.\n", linenum);
-        return createExtType(ERROR_t, false, NULL);
+        return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
     }
-    return createExtType(BOOL_t, false, NULL);
+    return createExtType(BOOL_t, false, NULL, EXPRESSION_t);
 }
 
 struct ExtType* relationalOP(struct ExtType* type1, struct ExtType* type2, const char* op) {
     if (type1->isArray || type2->isArray) {
         error = 1;
         printf("Error at Line #%d: Array arithmetic is not allowed.\n", linenum);
-        return createExtType(ERROR_t, false, NULL);
+        return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
     }
     if (type1->baseType == STRING_t || type1->baseType == VOID_t || type1->baseType == ERROR_t ||
         type2->baseType == STRING_t || type2->baseType == VOID_t || type2->baseType == ERROR_t) {
         error = 1;
         printf("Error at Line #%d: The operand's type of '%s' is not valid.\n", linenum, op);
-        return createExtType(ERROR_t, false, NULL);
+        return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
     }
     if (type1->baseType == BOOL_t && type2->baseType == BOOL_t) {
         if (strcmp(op, "==") == 0 || strcmp(op, "!=") == 0) {
-            return createExtType(BOOL_t, false, NULL);
+            return createExtType(BOOL_t, false, NULL, EXPRESSION_t);
         }
         else {
             error = 1;
             printf("Error at Line #%d: The operand's type of '%s' is not valid.\n", linenum, op);
-            return createExtType(ERROR_t, false, NULL);
+            return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
         }
     }
     if (checkType(type1, type2, false)) {
-        return createExtType(BOOL_t, false, NULL);
+        return createExtType(BOOL_t, false, NULL, EXPRESSION_t);
     }
     if (checkType(type2, type1, false)) {
-        return createExtType(BOOL_t, false, NULL); 
+        return createExtType(BOOL_t, false, NULL, EXPRESSION_t); 
     }
     error = 1;
     printf("Error at Line #%d: The operand's type of '%s' is not valid.\n", linenum, op);
-    return createExtType(ERROR_t, false, NULL);
+    return createExtType(ERROR_t, false, NULL, EXPRESSION_t);
 }
 
 // exact is for exactly equal or need type coercion
@@ -964,7 +963,7 @@ int checkParameterForDefinition(struct FuncAttr* param1, struct FuncAttr* param2
 void checkFunctionReturn(bool hasReturn) {
     if (!hasReturn) {
         error = 1;
-        printf("Error at Line #%d: Non-void type function should have return in the last line.\n", linenum);
+        printf("Error at Line #%d: Non-void type function should have return statement in the last line.\n", linenum);
     }
 }
 
@@ -981,7 +980,7 @@ void checkUndeclaraFunction(struct SymTable* table) {
         if (temp->kind == FUNCTION_t) {
             if (!temp->hasDefine) {
                 error = 1;
-                printf("Error at Line #%d: Function '%s' is not defined.\n", linenum, temp->name);
+                printf("Error at Line #%d: There is no definition for function '%s'.\n", linenum, temp->name);
             }
         }
         temp = temp->next;
@@ -1017,8 +1016,8 @@ void checkScalarType(struct ExtType* type) {
     }
 }
 
-void checkAssignType(struct ExtType* type1, struct ExtType* type2, bool isConst) {
-    if (isConst) {
+void checkAssignType(struct ExtType* type1, struct ExtType* type2) {
+    if (type1->varKind == CONSTANT_t) {
         error = 1;
         printf("Error at Line #%d: Re-assignment to constant is not allowed.\n", linenum);
     }
@@ -1040,8 +1039,8 @@ void checkVariableInitialization(struct ExtType* type1, struct ExtType* type2) {
 }
 
 void checkConstantInitialization(BTYPE baseType1, BTYPE baseType2) {
-    struct ExtType* type1 = createExtType(baseType1, false, NULL);
-    struct ExtType* type2 = createExtType(baseType2, false, NULL);
+    struct ExtType* type1 = createExtType(baseType1, false, NULL, EXPRESSION_t);
+    struct ExtType* type2 = createExtType(baseType2, false, NULL, EXPRESSION_t);
     type1->reference += 1;
     type2->reference += 1;
     if (!checkType(type1, type2, false)) {

@@ -36,7 +36,7 @@ int deleteAttribute(struct Attribute* target);
 struct FuncAttrNode* createFuncAttrNode(struct ExtType* type, const char* name);
 int connectFuncAttrNode(struct FuncAttrNode* head, struct FuncAttrNode* newNode);
 
-struct ExtType* createExtType(BTYPE baseType, bool isArray, struct ArrayDimNode* dimArray);
+struct ExtType* createExtType(BTYPE baseType, bool isArray, struct ArrayDimNode* dimArray, KIND varKind);
 int connectExtType(struct ExtType* head, struct ExtType* newType);
 int deleteExtType(struct ExtType* target);
 int deleteExtTypeList(struct ExtType* head);
@@ -48,7 +48,7 @@ struct ArrayDimNode* deleteArrayDimNode(struct ArrayDimNode* target);
 struct SymTableNode* findRepeatDeclaration(struct SymTable* table, const char* name);
 struct SymTableNode* findFuncDeclaration(struct SymTable* table, const char* name, struct ExtType* type, struct Attribute* attr);
 struct ExtType* findFuncForInvocation(struct SymTable* table, const char* name, struct ExtType* head);
-struct ExtType* findVariable(struct SymTable* table, const char* name, int dimension_num, bool* isConst);
+struct ExtType* findVariable(struct SymTable* table, const char* name, int dimension_num);
 
 struct ExtType* arithmeticOP(struct ExtType* type1, struct ExtType* type2, const char op);
 struct ExtType* moduloOP(struct ExtType* type1, struct ExtType* type2);
@@ -66,7 +66,7 @@ void checkInLoop(int inLoop, char *statement);
 void checkConditionalExpression(struct ExtType* type);
 void checkControlExpression(struct ExtType* type);
 void checkScalarType(struct ExtType* type);
-void checkAssignType(struct ExtType* type1, struct ExtType* type2, bool isConst);
+void checkAssignType(struct ExtType* type1, struct ExtType* type2);
 void checkVariableInitialization(struct ExtType* type1, struct ExtType* type2);
 void checkConstantInitialization(BTYPE baseType1, BTYPE baseType2);
 void checkArrayInitialization(struct ExtType* type, struct ExtType* typehead);
