@@ -18,4 +18,4 @@ double f3(int a, float b, double c, int d[10]) {
 
 void main() {
 
-}
+} // 2 error

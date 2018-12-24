@@ -35,7 +35,7 @@ void f4(int x, int z[5][5][5], int t[4]) {
 	x = f1(t); // error : size mismatch
 	x = f1(z[0][0][1]); // error
 	x = f2(z[0][0][1]);
-	x = f3(t);
+	x = f3(t); // error
 	while (f3(t) && (t[3] < x) || !(x != z[0][0][0])) {}
 
 	string a, b;
@@ -43,3 +43,4 @@ void f4(int x, int z[5][5][5], int t[4]) {
 	b = a;
 	b = b + a;      // 2 error
 }
+// 3 error

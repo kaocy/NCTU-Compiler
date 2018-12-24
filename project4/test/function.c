@@ -41,3 +41,4 @@ void test(){ // 3 error
 	test10(); // error
 	int x = 1;
 }
+// error
