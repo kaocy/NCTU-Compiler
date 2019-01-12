@@ -693,6 +693,7 @@ factor : variable_reference { $$ = $1; }
        | literal_const {
             $$ = createExtType($1->constVal->type, false, NULL, EXPRESSION_t);
             $$->reference += 1;
+            generateLiteralConstant($1->constVal);
             deleteAttribute($1);
         }
        ;
@@ -701,6 +702,7 @@ variable_reference : array_list { $$ = $1; }
                    | ID {
                         $$ = findVariable(symbolTableList->tail, $1, 0);
                         $$->reference += 1;
+                        generateVariableReference(symbolTableList->tail, $1);
                         free($1);
                     }
                    ;
