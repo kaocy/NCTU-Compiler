@@ -56,6 +56,7 @@ int printSymTable(struct SymTable* table) {
             if (attr->funcParam != NULL)
                 printParamAttribute(attr->funcParam);
         }
+        // printf("\t%d", entry->varNum);
         entry = entry->next;
         printf("\n");
     }
@@ -229,17 +230,19 @@ int destroySymTableList(struct SymTableList *list) {
     return 0;
 }
 
-int AddSymTable(struct SymTableList* list) { // enter a new scope
+int AddSymTable(struct SymTableList* list, bool isEnrtyFunc) { // enter a new scope
     if (list->head == NULL) {
         struct SymTable *newTable = (struct SymTable*)malloc(sizeof(struct SymTable));
         newTable->head = NULL;
         newTable->tail = NULL;
         newTable->next = NULL;
         newTable->prev = NULL;
+        newTable->reference = 1;
+        newTable->nextVarNum = 1; // for next table use (function)
+
         list->head = newTable;
         list->tail = list->head;
-        list->global = list->head;
-        newTable->reference = 1;
+        list->global = list->head;       
     }
     else {
         struct SymTable *newTable = (struct SymTable*)malloc(sizeof(struct SymTable));
@@ -247,9 +250,12 @@ int AddSymTable(struct SymTableList* list) { // enter a new scope
         newTable->tail = NULL;
         newTable->next = NULL;
         newTable->prev = list->tail;
+        newTable->reference = 1;
+        newTable->nextVarNum = list->tail->nextVarNum;
+        if (list->tail->prev == NULL && isEnrtyFunc)    newTable->nextVarNum--;
+
         list->tail->next = newTable;
         list->tail = newTable;
-        newTable->reference = 1;
     }
     return 0;
 }
@@ -260,6 +266,9 @@ int deleteLastSymTable(struct SymTableList* list) { // leave scope
     temp->reference -= 1; // derefence
     if (temp->reference > 0) return -1;
     if (list->head != list->tail) {
+        if (list->tail->prev->prev != NULL) { // for scope except function
+            list->tail->prev->nextVarNum = list->tail->nextVarNum;
+        }
         temp->prev->next = NULL;
         list->tail = temp->prev;
     }
@@ -302,6 +311,15 @@ int insertTableNode(struct SymTable *table, struct SymTableNode* newNode) {
         table->tail->next = newNode;
         table->tail = newNode;
     }
+
+    if (newNode->level >= 1) {
+        newNode->varNum = table->nextVarNum;
+        table->nextVarNum++;
+    }
+    else {
+        newNode->varNum = 0;
+    }
+    
     newNode->reference += 1;
     return 0;
 }

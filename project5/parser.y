@@ -4,6 +4,7 @@
 #include <string.h>
 #include "datatype.h"
 #include "symtable.h"
+#include "codeGenerator.h"
 
 // declared in scanner.l
 extern int linenum;
@@ -16,6 +17,7 @@ int yylex();
 int yyerror(char *msg);
 
 int scope = 0; // default is 0(global)
+bool isEntryFunc = true;
 struct SymTableList *symbolTableList; // create and initialize in main.c
 struct ExtType *funcReturnType;
 bool hasReturn; // check non-void function last line is return
@@ -157,7 +159,10 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
                 }
                 free($2);
             }
-            compound_statement { checkFunctionReturn(hasReturn); }
+            compound_statement {
+                checkFunctionReturn(hasReturn);
+                isEntryFunc = false;
+            }
           | scalar_type ID L_PAREN parameter_list R_PAREN {
                 funcReturnType = createExtType($1, false, NULL, EXPRESSION_t);
                 struct Attribute *attr = createFunctionAttribute($4);
@@ -170,7 +175,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
             }
             L_BRACE { // enter a new scope
                 ++scope;
-                AddSymTable(symbolTableList);
+                AddSymTable(symbolTableList, isEntryFunc);
                 // add parameters
                 struct FuncAttrNode *attrNode = $4;
                 while (attrNode != NULL) {
@@ -181,6 +186,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
             }
             var_const_stmt_list R_BRACE {
                 checkFunctionReturn(hasReturn);
+                isEntryFunc = false;
                 if (Opt_SymTable == 1)
                     printSymTable(symbolTableList->tail);
                 deleteLastSymTable(symbolTableList);
@@ -197,7 +203,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
                 }       
                 free($2);
             }
-            compound_statement
+            compound_statement { isEntryFunc = false; }
           | VOID ID L_PAREN parameter_list R_PAREN {
                 funcReturnType = createExtType(VOID_t, false, NULL, EXPRESSION_t);
                 struct Attribute *attr = createFunctionAttribute($4);
@@ -210,7 +216,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
             }
             L_BRACE { // enter a new scope
                 ++scope;
-                AddSymTable(symbolTableList);
+                AddSymTable(symbolTableList, isEntryFunc);
                 // add parameters
                 struct FuncAttrNode *attrNode = $4;
                 while (attrNode != NULL) {
@@ -219,7 +225,8 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
                     attrNode = attrNode->next;
                 }
             }
-            var_const_stmt_list R_BRACE {   
+            var_const_stmt_list R_BRACE {
+                isEntryFunc = false;
                 if (Opt_SymTable == 1)
                     printSymTable(symbolTableList->tail);
                 deleteLastSymTable(symbolTableList);
@@ -312,7 +319,10 @@ var_decl : scalar_type identifier_list SEMICOLON {
                     if (listNode->initArrayHead != NULL) {
                         checkArrayInitialization(newNode->type, listNode->initArrayHead);
                     }
-                    insertTableNode(symbolTableList->tail, newNode);
+                    int result = insertTableNode(symbolTableList->tail, newNode);
+                    if (result != -1) {
+                        generateVariableDeclaration(newNode);
+                    }
                     listNode = listNode->next;
                 }
                 deleteVariableList($2);
@@ -445,7 +455,7 @@ statement : compound_statement { hasReturn = false; }
 
 compound_statement : L_BRACE  { // enter a new scope
                         ++scope;
-                        AddSymTable(symbolTableList);
+                        AddSymTable(symbolTableList, isEntryFunc);
                     }
                      var_const_stmt_list R_BRACE {
                         if (Opt_SymTable == 1)
@@ -479,7 +489,7 @@ while_statement : WHILE L_PAREN boolean_expression R_PAREN
                   L_BRACE { // enter a new scope
                     ++scope;
                     ++inLoop;
-                    AddSymTable(symbolTableList);
+                    AddSymTable(symbolTableList, false);
                 } 
                   var_const_stmt_list R_BRACE {   
                     if (Opt_SymTable == 1)
@@ -491,7 +501,7 @@ while_statement : WHILE L_PAREN boolean_expression R_PAREN
                 | DO L_BRACE { // enter a new scope
                     ++scope;
                     ++inLoop;
-                    AddSymTable(symbolTableList);
+                    AddSymTable(symbolTableList, false);
                 }
                   var_const_stmt_list
                   R_BRACE WHILE L_PAREN boolean_expression R_PAREN SEMICOLON {
@@ -507,7 +517,7 @@ for_statement : FOR L_PAREN initial_expression SEMICOLON control_expression SEMI
                 L_BRACE { // enter a new scope
                     ++scope;
                     ++inLoop;
-                    AddSymTable(symbolTableList);
+                    AddSymTable(symbolTableList, false);
                 }
                 var_const_stmt_list R_BRACE {
                     if (Opt_SymTable == 1)

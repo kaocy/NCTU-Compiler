@@ -77,6 +77,7 @@ struct SymTableNode {
     struct Attribute* attr;
     struct SymTableNode* next;
     bool hasDefine; // for function
+    int varNum;
 };
 
 struct SymTable {
@@ -85,6 +86,7 @@ struct SymTable {
     struct SymTableNode* tail;
     struct SymTable* next;
     struct SymTable* prev;
+    int nextVarNum;
 };
 
 struct SymTableList {

@@ -11,7 +11,7 @@ int printParamAttribute(struct FuncAttr* funcAttr);
 int initSymTableList(struct SymTableList *list);
 int destroySymTableList(struct SymTableList *list);
 
-int AddSymTable(struct SymTableList* list);
+int AddSymTable(struct SymTableList* list, bool isEnrtyFunc);
 int deleteLastSymTable(struct SymTableList* list);
 struct SymTable* deleteSymTable(struct SymTable* target);
 

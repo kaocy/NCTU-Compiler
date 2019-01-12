@@ -2,12 +2,15 @@
 #include <stdlib.h>
 #include "datatype.h"
 #include "symtable.h"
+#include "codeGenerator.h"
 
 // from parser.y
 extern int yyparse();
 extern FILE* yyin;
 extern struct SymTableList *symbolTableList;
 int error = 0;
+
+FILE *fpout; // for Java bytecode file 
 
 int main(int argc, char **argv) {
 
@@ -23,17 +26,25 @@ int main(int argc, char **argv) {
         yyin = fp;
     }
     else {
-        fprintf(stderr, "Usage: ./parser [filename]\n");
+        fprintf(stderr, "Usage: ./compiler [filename]\n");
         exit(0);
-    } 
+    }
+
+    fpout = fopen("output.j", "w");
+    if (fpout == NULL) {
+        fprintf(stderr, "Open file error\n");
+        exit(-1);
+    }
 
     symbolTableList = (struct SymTableList*)malloc(sizeof(struct SymTableList));
     initSymTableList(symbolTableList);
-    AddSymTable(symbolTableList); // global
+    AddSymTable(symbolTableList, false); // global
+    programInitialization();
+
     yyparse(); /* primary procedure of parser */
 
     destroySymTableList(symbolTableList);
-    
+
     if (!error) {
         fprintf(stdout, "\n");
         fprintf(stdout, "|---------------------------------------------|\n");
