@@ -599,6 +599,7 @@ logical_expression_list : logical_expression_list COMMA logical_expression {
 logical_expression : logical_expression OR_OP logical_term {
                         $$ = logicalOP($1, $3, "||");
                         $$->reference += 1;
+                        generateLogicalOP($$, "||");
                         deleteExtType($1);
                         deleteExtType($3);
                     }
@@ -608,6 +609,7 @@ logical_expression : logical_expression OR_OP logical_term {
 logical_term : logical_term AND_OP logical_factor {
                     $$ = logicalOP($1, $3, "&&");
                     $$->reference += 1;
+                    generateLogicalOP($$, "&&");
                     deleteExtType($1);
                     deleteExtType($3);
                 }
@@ -617,6 +619,7 @@ logical_term : logical_term AND_OP logical_factor {
 logical_factor : NOT_OP logical_factor {
                     $$ = logicalNotOP($2);
                     $$->reference += 1;
+                    generateLogicalOP($$, "!");
                     deleteExtType($2);
                 }
                | relation_expression { $$ = $1; }
@@ -625,6 +628,7 @@ logical_factor : NOT_OP logical_factor {
 relation_expression : arithmetic_expression relation_operator arithmetic_expression {
                         $$ = relationalOP($1, $3, $2);
                         $$->reference += 1;
+                        generateRelationalOP($1, $3, $2);
                         deleteExtType($1);
                         deleteExtType($3);
                         free($2);
@@ -643,12 +647,14 @@ relation_operator : LT_OP { $$ = strdup("<"); }
 arithmetic_expression : arithmetic_expression ADD_OP term {
                             $$ = arithmeticOP($1, $3, '+');
                             $$->reference += 1;
+                            generateArithmeticOP($$, $1, $3, '+');
                             deleteExtType($1);
                             deleteExtType($3);
                         }
                       | arithmetic_expression SUB_OP term {
                             $$ = arithmeticOP($1, $3, '-');
                             $$->reference += 1;
+                            generateArithmeticOP($$, $1, $3, '-');
                             deleteExtType($1);
                             deleteExtType($3);
                         }
@@ -658,18 +664,21 @@ arithmetic_expression : arithmetic_expression ADD_OP term {
 term : term MUL_OP factor {
             $$ = arithmeticOP($1, $3, '*');
             $$->reference += 1;
+            generateArithmeticOP($$, $1, $3, '*');
             deleteExtType($1);
             deleteExtType($3);
         }
      | term DIV_OP factor {
             $$ = arithmeticOP($1, $3, '/');
             $$->reference += 1;
+            generateArithmeticOP($$, $1, $3, '/');
             deleteExtType($1);
             deleteExtType($3);
         }
      | term MOD_OP factor {
             $$ = moduloOP($1, $3);
             $$->reference += 1;
+            generateModuloOP($$);
             deleteExtType($1);
             deleteExtType($3);
         }
@@ -677,7 +686,10 @@ term : term MUL_OP factor {
      ;
 
 factor : variable_reference { $$ = $1; }
-       | SUB_OP factor { $$ = $2; }
+       | SUB_OP factor {
+            $$ = $2;
+            generateNegativeOP($2);
+        }
        | L_PAREN logical_expression R_PAREN { $$ = $2; }
        | ID L_PAREN logical_expression_list R_PAREN {
             $$ = findFuncForInvocation(symbolTableList->global, $1, $3);
