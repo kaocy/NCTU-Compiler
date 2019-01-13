@@ -32,3 +32,5 @@ void generateLoopEnd();
 void generateDoWhileControl();
 void generateFunctionStart(struct ExtType* returnType, struct FuncAttrNode* paramHead, const char* name, bool isEnrtyFunc);
 void generateFunctionEnd(bool isVoid);
+void generateFunctionReturn(struct ExtType* funcitonType, struct ExtType* returnType, bool isEnrtyFunc);
+void generateFunctionInvocation(struct SymTable* table, const char* name);

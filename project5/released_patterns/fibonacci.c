@@ -1,6 +1,6 @@
 int fibonacci( int n );
 
-int main() {
+void main() {
 	int i;
 
 	for( i = 1 ; i <= 20 ; i = i + 1 ) {
@@ -9,8 +9,7 @@ int main() {
 	}
 	
 	print "\n";
-	
-	return 0;
+
 }
 
 int fibonacci( int n ) {

@@ -631,13 +631,17 @@ increment_expression : logical_expression
                         }
                      ;
 
-function_invoke_statement : ID L_PAREN logical_expression_list R_PAREN SEMICOLON {
-                                findFuncForInvocation(symbolTableList->global, $1, $3);
-                                deleteExtTypeList($3);
+function_invoke_statement : ID L_PAREN { assignVarEnable = false; }
+                            logical_expression_list R_PAREN SEMICOLON {
+                                findFuncForInvocation(symbolTableList->global, $1, $4);
+                                generateFunctionInvocation(symbolTableList->global, $1);
+                                deleteExtTypeList($4);
                                 free($1);
+                                assignVarEnable = true;
                             }
                           | ID L_PAREN R_PAREN SEMICOLON {
                                 findFuncForInvocation(symbolTableList->global, $1, NULL);
+                                generateFunctionInvocation(symbolTableList->global, $1);
                                 free($1);
                             }
                           ;
@@ -650,14 +654,19 @@ jump_statement : CONTINUE SEMICOLON {
                     hasReturn = false;
                     checkInLoop(inLoop, "break");
                 }
-               | RETURN logical_expression SEMICOLON { 
+               | RETURN { assignVarEnable = false; }
+                 logical_expression SEMICOLON { 
                     hasReturn = true;
-                    checkFunctionReturnType(funcReturnType, $2);
-                    deleteExtType($2);
+                    checkFunctionReturnType(funcReturnType, $3);
+                    generateFunctionReturn(funcReturnType, $3, isEntryFunc);
+                    deleteExtType($3);
+                    assignVarEnable = true;
                 }
                ;
 
 /************************ Utilities ************************/
+
+assign_op: ASSIGN_OP { assignVarEnable = false; }
 
 logical_expression_list : logical_expression_list COMMA logical_expression {
                             $3->reference -= 1; // in connect, reference += 1
@@ -762,15 +771,19 @@ factor : variable_reference { $$ = $1; }
             generateNegativeOP($2);
         }
        | L_PAREN logical_expression R_PAREN { $$ = $2; }
-       | ID L_PAREN logical_expression_list R_PAREN {
-            $$ = findFuncForInvocation(symbolTableList->global, $1, $3);
+       | ID L_PAREN { assignVarEnable = false; }
+         logical_expression_list R_PAREN {
+            $$ = findFuncForInvocation(symbolTableList->global, $1, $4);
             $$->reference += 1;
-            deleteExtTypeList($3);
+            generateFunctionInvocation(symbolTableList->global, $1);
+            deleteExtTypeList($4);
             free($1);
+            assignVarEnable = true;
         }
        | ID L_PAREN R_PAREN {
             $$ = findFuncForInvocation(symbolTableList->global, $1, NULL);
             $$->reference += 1;
+            generateFunctionInvocation(symbolTableList->global, $1);
             free($1);
         }
        | literal_const {
@@ -855,8 +868,6 @@ literal_const : INT_CONST {
                     $$ = createConstantAttribute(BOOL_t, &val);
                 }
               ;
-
-assign_op: ASSIGN_OP { assignVarEnable = false; }
 
 %%
 

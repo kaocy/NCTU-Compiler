@@ -589,5 +589,88 @@ void generateFunctionStart(struct ExtType* returnType, struct FuncAttrNode* para
 
 void generateFunctionEnd(bool isVoid) {
     if (isVoid) fprintf(fpout, "\treturn\n");
-    fprintf(fpout, ".end method\n");
+    fprintf(fpout, ".end method\n\n");
+}
+
+void generateFunctionReturn(struct ExtType* functionType, struct ExtType* returnType, bool isEnrtyFunc) {
+    if (isEnrtyFunc) {
+        fprintf(fpout, "\treturn\n");
+        return ;
+    }
+    switch (functionType->baseType) {
+        case INT_t:
+            fprintf(fpout, "\tireturn\n");
+            break;
+        case FLOAT_t:
+            convertType(functionType, returnType);
+            fprintf(fpout, "\tfreturn\n");
+            break;
+        case DOUBLE_t:
+            convertType(functionType, returnType);
+            fprintf(fpout, "\tdreturn\n");
+            break;
+        case BOOL_t:
+            fprintf(fpout, "\tireturn\n");
+            break;
+        default:
+            break;
+    }
+}
+
+void generateFunctionInvocation(struct SymTable* table, const char* name) {
+    fprintf(fpout, "\tinvokestatic output/%s(", name);
+
+    BTYPE functionType;
+    struct SymTableNode *entry = table->head;
+    while (entry != NULL) {
+        if (entry->kind == FUNCTION_t) {
+            if (strcmp(entry->name, name) == 0) {
+                functionType = entry->type->baseType;
+                if (entry->attr == NULL)    break;
+                struct FuncAttrNode* head = entry->attr->funcParam->head;
+                while (head != NULL) {
+                    switch (head->value->baseType) {
+                        case INT_t:
+                            fprintf(fpout, "I");
+                            break;
+                        case FLOAT_t:
+                            fprintf(fpout, "F");
+                            break;
+                        case DOUBLE_t:
+                            fprintf(fpout, "D");
+                            break;
+                        case BOOL_t:
+                            fprintf(fpout, "Z");
+                            break;
+                        default:
+                            break;
+                    }
+                    head = head->next;
+                }
+            }
+        }
+        entry = entry->next;
+    }
+
+    fprintf(fpout, ")");
+
+    switch (functionType) {
+        case INT_t:
+            fprintf(fpout, "I\n");
+            break;
+        case FLOAT_t:
+            fprintf(fpout, "F\n");
+            break;
+        case DOUBLE_t:
+            fprintf(fpout, "D\n");
+            break;
+        case BOOL_t:
+            fprintf(fpout, "Z\n");
+            break;
+        case VOID_t:
+            fprintf(fpout, "V\n");
+            break;
+        default:
+            break;
+    }
 }
