@@ -5,8 +5,13 @@
 void programInitialization() {
     fprintf(fpout, ".class public output\n");
     fprintf(fpout, ".super java/lang/Object\n");
-    fprintf(fpout, ".field public static _sc Ljava/util/Scanner;\n\n");
-    branchNum = 0;
+    fprintf(fpout, ".field public static _sc Ljava/util/Scanner;\n\n"); // for read instruction
+    
+    compareNum = 0;
+    ifNum = ifStackPointer = 0;
+    memset(ifStack, -1, sizeof(ifStackPointer));
+    loopNum = loopStackPointer =0;
+    memset(loopStack, -1, sizeof(loopStackPointer));
 }
 
 void generateVariableDeclaration(struct SymTable* table, const char* name, struct ExtType* varType) {
@@ -218,12 +223,12 @@ void generateRelationalOP(struct ExtType *type1, struct ExtType *type2, const ch
             if (strcmp(op, "==") == 0)  fprintf(fpout, "\tifeq ");
             if (strcmp(op, "!=") == 0)  fprintf(fpout, "\tifne ");
 
-            fprintf(fpout, "LTrue%d\n", branchNum);
+            fprintf(fpout, "Ltrue_%d\n", compareNum);
             fprintf(fpout, "\ticonst_0\n");
-            fprintf(fpout, "\tgoto LFalse%d\n", branchNum);
-            fprintf(fpout, "LTrue%d:\n", branchNum);
+            fprintf(fpout, "\tgoto Lfalse_%d\n", compareNum);
+            fprintf(fpout, "Ltrue_%d:\n", compareNum);
             fprintf(fpout, "\ticonst_1\n");
-            fprintf(fpout, "LFalse%d:\n", branchNum++);
+            fprintf(fpout, "Lfalse_%d:\n", compareNum++);
         }
         return ;
     }
@@ -258,12 +263,12 @@ void generateRelationalOP(struct ExtType *type1, struct ExtType *type2, const ch
     if (strcmp(op, ">") == 0)   fprintf(fpout, "\tifgt ");
     if (strcmp(op, ">=") == 0)  fprintf(fpout, "\tifge ");
 
-    fprintf(fpout, "LTrue%d\n", branchNum);
+    fprintf(fpout, "Ltrue_%d\n", compareNum);
     fprintf(fpout, "\ticonst_0\n");
-    fprintf(fpout, "\tgoto LFalse%d\n", branchNum);
-    fprintf(fpout, "LTrue%d:\n", branchNum);
+    fprintf(fpout, "\tgoto Lfalse_%d\n", compareNum);
+    fprintf(fpout, "Ltrue_%d:\n", compareNum);
     fprintf(fpout, "\ticonst_1\n");
-    fprintf(fpout, "LFalse%d:\n", branchNum++);
+    fprintf(fpout, "Lfalse_%d:\n", compareNum++);
 }
 
 void generateVariableInitialization(struct SymTable* table, const char* name, struct ExtType* varType, struct ExtType* valueType, int varNumOffset) {
@@ -465,6 +470,57 @@ void generateReadStart(struct SymTable* table, const char* name, struct ExtType*
     }
 }
 
+void generateIfStart() {
+    fprintf(fpout, "\tifeq Lelse_%d\n", ifNum);
+    ifStack[ifStackPointer] = ifNum;
+    ifStackPointer++;
+    ifNum++;
+}
+
+void generateElseStart() {
+    fprintf(fpout, "\tgoto Lexit_%d\n", ifStack[ifStackPointer - 1]);
+    fprintf(fpout, "Lelse_%d:\n", ifStack[ifStackPointer - 1]);
+}
+
+void generateIfEnd() {
+    fprintf(fpout, "Lexit_%d:\n", ifStack[ifStackPointer - 1]);
+    ifStackPointer--;
+    ifStack[ifStackPointer] = -1;
+}
+
+void generateLoopStart() {
+    fprintf(fpout, "Lbegin_%d:\n", loopNum);
+    loopStack[loopStackPointer] = loopNum;
+    loopStackPointer++;
+    loopNum++;
+}
+
+void generateLoopControl() {
+    fprintf(fpout, "\tifeq Lend_%d\n", loopNum - 1);
+    fprintf(fpout, "\tgoto Lcontent_%d\n", loopNum - 1);
+    fprintf(fpout, "Lincrement_%d:\n", loopNum - 1);
+}
+
+void generateLoopIncrement() {
+    fprintf(fpout, "\tgoto Lbegin_%d\n", loopNum - 1);
+    fprintf(fpout, "Lcontent_%d:\n", loopNum - 1);
+}
+
+void generateLoopEnd() {
+    fprintf(fpout, "\tgoto Lincrement_%d\n", loopStack[loopStackPointer - 1]);
+    fprintf(fpout, "Lend_%d:\n", loopStack[loopStackPointer - 1]);
+    loopStackPointer--;
+    loopStack[loopStackPointer] = -1;
+}
+
+void generateDoWhileControl() {
+    fprintf(fpout, "\tifeq Lend_%d\n", loopStack[loopStackPointer - 1]);
+    fprintf(fpout, "\tgoto Lbegin_%d\n", loopStack[loopStackPointer - 1]);
+    fprintf(fpout, "Lend_%d:\n", loopStack[loopStackPointer - 1]);
+    loopStackPointer--;
+    loopStack[loopStackPointer] = -1;
+}
+
 void generateFunctionStart(struct ExtType* returnType, struct FuncAttrNode* paramHead, const char* name, bool isEnrtyFunc) {
     fprintf(fpout, ".method public static %s(", name);
 
@@ -522,6 +578,8 @@ void generateFunctionStart(struct ExtType* returnType, struct FuncAttrNode* para
 
     fprintf(fpout, "\t.limit stack 100\n");
     fprintf(fpout, "\t.limit locals 100\n");
+
+    // for read instruction
     fprintf(fpout, "\tnew java/util/Scanner\n");
     fprintf(fpout, "\tdup\n");
     fprintf(fpout, "\tgetstatic java/lang/System/in Ljava/io/InputStream;\n");

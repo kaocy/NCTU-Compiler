@@ -530,12 +530,18 @@ simple_statement : variable_reference assign_op logical_expression SEMICOLON {
                     }
                  ;
 
-conditional_statement : IF L_PAREN boolean_expression R_PAREN compound_statement
-                      | IF L_PAREN boolean_expression R_PAREN compound_statement
-                        ELSE compound_statement
+conditional_statement : if_statement
+                        compound_statement { generateElseStart(); generateIfEnd(); }
+                      | if_statement
+                        compound_statement { generateElseStart(); }
+                        ELSE compound_statement { generateIfEnd(); }
                       ;
 
-while_statement : WHILE L_PAREN boolean_expression R_PAREN 
+if_statement : IF { assignVarEnable = false; }
+               L_PAREN boolean_expression R_PAREN { assignVarEnable = true; generateIfStart(); }
+
+while_statement : WHILE L_PAREN { generateLoopStart(); assignVarEnable = false; }
+                  boolean_expression R_PAREN { generateLoopControl(); assignVarEnable = true; generateLoopIncrement(); }
                   L_BRACE { // enter a new scope
                     ++scope;
                     ++inLoop;
@@ -547,23 +553,31 @@ while_statement : WHILE L_PAREN boolean_expression R_PAREN
                     deleteLastSymTable(symbolTableList);
                     --scope;
                     --inLoop;
+                    generateLoopEnd();
                 }
                 | DO L_BRACE { // enter a new scope
                     ++scope;
                     ++inLoop;
                     AddSymTable(symbolTableList, false);
+                    generateLoopStart();
                 }
                   var_const_stmt_list
-                  R_BRACE WHILE L_PAREN boolean_expression R_PAREN SEMICOLON {
+                  R_BRACE WHILE L_PAREN { assignVarEnable = false; }
+                  boolean_expression R_PAREN SEMICOLON {
                     if (Opt_SymTable == 1)
                         printSymTable(symbolTableList->tail);
                     deleteLastSymTable(symbolTableList);
                     --scope;
                     --inLoop;
+                    generateDoWhileControl();
+                    assignVarEnable = true;
                 }
                 ;
 
-for_statement : FOR L_PAREN initial_expression SEMICOLON control_expression SEMICOLON increment_expression R_PAREN 
+for_statement : FOR L_PAREN 
+                initial_expression { generateLoopStart(); assignVarEnable = false; } SEMICOLON
+                control_expression { generateLoopControl(); assignVarEnable = true; } SEMICOLON
+                increment_expression { generateLoopIncrement(); } R_PAREN 
                 L_BRACE { // enter a new scope
                     ++scope;
                     ++inLoop;
@@ -575,6 +589,7 @@ for_statement : FOR L_PAREN initial_expression SEMICOLON control_expression SEMI
                     deleteLastSymTable(symbolTableList);
                     --scope;
                     --inLoop;
+                    generateLoopEnd();
                 }
               ;
 
@@ -586,6 +601,7 @@ boolean_expression : logical_expression {
 initial_expression : logical_expression
                    | variable_reference assign_op logical_expression {
                         checkAssignType($1, $3);
+                        generateVariableAssignment(symbolTableList->tail, assignVar, $3);
                         deleteExtType($1);
                         deleteExtType($3);
                         assignVarEnable = true;
@@ -598,6 +614,7 @@ control_expression : logical_expression {
                    | variable_reference assign_op logical_expression {
                         checkAssignType($1, $3);
                         checkControlExpression($1);
+                        generateVariableAssignment(symbolTableList->tail, assignVar, $3);
                         deleteExtType($1);
                         deleteExtType($3);
                         assignVarEnable = true;
@@ -607,6 +624,7 @@ control_expression : logical_expression {
 increment_expression : logical_expression
                      | variable_reference assign_op logical_expression {
                             checkAssignType($1, $3);
+                            generateVariableAssignment(symbolTableList->tail, assignVar, $3);
                             deleteExtType($1);
                             deleteExtType($3);
                             assignVarEnable = true;

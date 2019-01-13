@@ -8,6 +8,7 @@ const string ss = "string";
 const float rr = 1.23;
 
 void main() {
+	const int test = 4;
 	int d;
 	float e;
 	bool f;

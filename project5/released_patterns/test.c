@@ -6,7 +6,7 @@ void main() {
 	bool b;
 	if (true) {
 		double c, d;
-		while (true) {
+		while (false) {
 			float e, f;
 		}
 	}
@@ -18,7 +18,7 @@ void test(int x, int y) {
 	bool b;
 	if (true) {
 		double a, d;
-		while (true) {
+		while (false) {
 			float e, f;
 		}
 	}
@@ -29,7 +29,7 @@ void test(int x, int y) {
 void test2() {
 	if (true) {
 		double c, d;
-		while (true) {
+		while (false) {
 			float c, d;
 		}
 	}

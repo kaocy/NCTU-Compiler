@@ -252,7 +252,7 @@ int AddSymTable(struct SymTableList* list, bool isEnrtyFunc) { // enter a new sc
         newTable->prev = list->tail;
         newTable->reference = 1;
         newTable->nextVarNum = list->tail->nextVarNum;
-        if (list->tail->prev == NULL && isEnrtyFunc)    newTable->nextVarNum--;
+        if (list->tail->prev == NULL && !isEnrtyFunc)    newTable->nextVarNum--;
 
         list->tail->next = newTable;
         list->tail = newTable;
