@@ -13,7 +13,7 @@ void main() {
 	int g, h;
 }
 
-int test(int x, int y) {
+void test(int x, int y) {
 	int a;
 	bool b;
 	if (true) {
@@ -26,7 +26,7 @@ int test(int x, int y) {
 	return 1;
 }
 
-int test2() {
+void test2() {
 	if (true) {
 		double c, d;
 		while (true) {
@@ -34,5 +34,4 @@ int test2() {
 		}
 	}
 	int g, h;
-	return 1;
 }

@@ -312,12 +312,15 @@ int insertTableNode(struct SymTable *table, struct SymTableNode* newNode) {
         table->tail = newNode;
     }
 
-    if (newNode->level >= 1) {
-        newNode->varNum = table->nextVarNum;
-        table->nextVarNum++;
-    }
-    else {
-        newNode->varNum = 0;
+    if (newNode->kind == VARIABLE_t || newNode->kind == PARAMETER_t) {
+        if (newNode->level >= 1) {
+            newNode->varNum = table->nextVarNum;
+            if (newNode->type->baseType == DOUBLE_t)  table->nextVarNum += 2;
+            else    table->nextVarNum += 1;
+        }
+        else {
+            newNode->varNum = 0;
+        }
     }
     
     newNode->reference += 1;

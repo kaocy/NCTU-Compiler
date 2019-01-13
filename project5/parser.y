@@ -17,12 +17,15 @@ int yylex();
 int yyerror(char *msg);
 
 int scope = 0; // default is 0(global)
-bool isEntryFunc = true;
 struct SymTableList *symbolTableList; // create and initialize in main.c
 struct ExtType *funcReturnType;
 bool hasReturn; // check non-void function last line is return
+bool isEntryFunc = true; // the first function definition is entry function
 int inLoop = 0; // check whether in loop
-KIND varKind;
+char assignVar[33]; // record variable to be assigned
+bool assignVarEnable = true; // check whether to record new assignVar
+BTYPE declareVarType; // record declaration type before insert to symbol table
+int varNumOffset; // record variable declaration number in one line;
 %}
 
 %union {
@@ -157,11 +160,13 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
                     struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL, true);
                     insertTableNode(symbolTableList->global, newNode);
                 }
+                generateFunctionStart(funcReturnType, NULL, $2, isEntryFunc);
                 free($2);
             }
             compound_statement {
                 checkFunctionReturn(hasReturn);
                 isEntryFunc = false;
+                generateFunctionEnd(false);
             }
           | scalar_type ID L_PAREN parameter_list R_PAREN {
                 funcReturnType = createExtType($1, false, NULL, EXPRESSION_t);
@@ -172,6 +177,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
                     struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr, true);
                     insertTableNode(symbolTableList->global,newNode);
                 }
+                generateFunctionStart(funcReturnType, $4, $2, isEntryFunc);
             }
             L_BRACE { // enter a new scope
                 ++scope;
@@ -190,6 +196,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
                 if (Opt_SymTable == 1)
                     printSymTable(symbolTableList->tail);
                 deleteLastSymTable(symbolTableList);
+                generateFunctionEnd(false);
                 --scope;
                 free($2);
             }
@@ -200,10 +207,14 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
                 if (node == NULL) {
                     struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, NULL, true);
                     insertTableNode(symbolTableList->global, newNode);
-                }       
+                }
+                generateFunctionStart(funcReturnType, NULL, $2, isEntryFunc);
                 free($2);
             }
-            compound_statement { isEntryFunc = false; }
+            compound_statement {
+                isEntryFunc = false;
+                generateFunctionEnd(true);
+            }
           | VOID ID L_PAREN parameter_list R_PAREN {
                 funcReturnType = createExtType(VOID_t, false, NULL, EXPRESSION_t);
                 struct Attribute *attr = createFunctionAttribute($4);
@@ -213,6 +224,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
                     struct SymTableNode *newNode = createFunctionNode($2, scope, funcReturnType, attr, true);
                     insertTableNode(symbolTableList->global, newNode);
                 }
+                generateFunctionStart(funcReturnType, $4, $2, isEntryFunc);
             }
             L_BRACE { // enter a new scope
                 ++scope;
@@ -230,6 +242,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN {
                 if (Opt_SymTable == 1)
                     printSymTable(symbolTableList->tail);
                 deleteLastSymTable(symbolTableList);
+                generateFunctionEnd(true);
                 --scope;
                 free($2);
             }
@@ -320,19 +333,25 @@ var_decl : scalar_type identifier_list SEMICOLON {
                         checkArrayInitialization(newNode->type, listNode->initArrayHead);
                     }
                     int result = insertTableNode(symbolTableList->tail, newNode);
-                    if (result != -1) {
-                        generateVariableDeclaration(newNode);
-                    }
                     listNode = listNode->next;
                 }
                 deleteVariableList($2);
+                varNumOffset = 0;
             }
          ;
 
-identifier_list : identifier_list COMMA ID ASSIGN_OP logical_expression {
+identifier_list : identifier_list COMMA ID assign_op logical_expression {
                     struct ExtType *type = createExtType(VOID, false, NULL, VARIABLE_t); // type unknown here
                     $5->reference -= 1; // due to createVariable
                     struct Variable *newVariable = createVariable($3, type, $5, NULL);
+
+                    type->baseType = declareVarType;
+                    generateVariableDeclaration(symbolTableList->tail, $3, type);
+                    generateVariableInitialization(symbolTableList->tail, $3, type, $5, varNumOffset);
+                    varNumOffset++;
+                    if (type->baseType == DOUBLE_t) varNumOffset++;
+                    assignVarEnable = true;
+
                     free($3);
                     connectVariableList($1, newVariable);
                     $$ = $1;
@@ -340,35 +359,57 @@ identifier_list : identifier_list COMMA ID ASSIGN_OP logical_expression {
                 | identifier_list COMMA ID {
                     struct ExtType *type = createExtType(VOID, false, NULL, VARIABLE_t); // type unknown here
                     struct Variable *newVariable = createVariable($3, type, NULL, NULL);
+
+                    type->baseType = declareVarType;
+                    generateVariableDeclaration(symbolTableList->tail, $3, type);
+                    varNumOffset++;
+                    if (type->baseType == DOUBLE_t) varNumOffset++;
+
                     free($3);
                     connectVariableList($1, newVariable);
                     $$ = $1;
                 }
-                | ID ASSIGN_OP logical_expression {  
+                | ID assign_op logical_expression {  
                     struct ExtType *type = createExtType(VOID, false, NULL, VARIABLE_t); // type unknown here
                     $3->reference -= 1; // due to createVariable
                     struct Variable *newVariable = createVariable($1, type, $3, NULL);
+
+                    type->baseType = declareVarType;
+                    generateVariableDeclaration(symbolTableList->tail, $1, type);
+                    generateVariableInitialization(symbolTableList->tail, $1, type, $3, varNumOffset);
+                    varNumOffset = 1;
+                    if (type->baseType == DOUBLE_t) varNumOffset++;
+                    assignVarEnable = true;
+
                     $$ = createVariableList(newVariable);
                     free($1);
                 }
                 | ID {
                     struct ExtType *type = createExtType(VOID, false, NULL, VARIABLE_t); // type unknown here
                     struct Variable *newVariable = createVariable($1, type, NULL, NULL);
+
+                    type->baseType = declareVarType;
+                    generateVariableDeclaration(symbolTableList->tail, $1, type);
+                    varNumOffset = 1;
+                    if (type->baseType == DOUBLE_t) varNumOffset++;
+
                     $$ = createVariableList(newVariable);
-                    free($1);
+                    free($1);           
                 }
-                | identifier_list COMMA array_decl ASSIGN_OP initial_array {
+                | identifier_list COMMA array_decl assign_op initial_array {
                     $3->initArrayHead = $5;
                     connectVariableList($1, $3);
                     $$ = $1;
+                    assignVarEnable = true;
                 }
                 | identifier_list COMMA array_decl {
                     connectVariableList($1, $3);
                     $$ = $1;
                 }
-                | array_decl ASSIGN_OP initial_array {
+                | array_decl assign_op initial_array {
                     $1->initArrayHead = $3;
                     $$ = createVariableList($1);
+                    assignVarEnable = true;
                 }
                 | array_decl {
                     $$ = createVariableList($1);
@@ -465,17 +506,26 @@ compound_statement : L_BRACE  { // enter a new scope
                     }
                    ;    
 
-simple_statement : variable_reference ASSIGN_OP logical_expression SEMICOLON {
+simple_statement : variable_reference assign_op logical_expression SEMICOLON {
                         checkAssignType($1, $3);
+                        generateVariableAssignment(symbolTableList->tail, assignVar, $3);
+                        assignVarEnable = true;
                         deleteExtType($1);
                         deleteExtType($3);
                     }
-                 | PRINT logical_expression SEMICOLON {
-                        checkScalarType($2);
-                        deleteExtType($2);
+                 | PRINT {
+                        generatePrintStart();
+                        assignVarEnable = false;
+                    } 
+                   logical_expression SEMICOLON {
+                        checkScalarType($3);
+                        generatePrintEnd($3);
+                        deleteExtType($3);
+                        assignVarEnable = true;
                     }
                  | READ variable_reference SEMICOLON {
                         checkScalarType($2);
+                        generateReadStart(symbolTableList->tail, assignVar, $2);
                         deleteExtType($2);
                     }
                  ;
@@ -534,29 +584,32 @@ boolean_expression : logical_expression {
                     }
 
 initial_expression : logical_expression
-                   | variable_reference ASSIGN_OP logical_expression {
+                   | variable_reference assign_op logical_expression {
                         checkAssignType($1, $3);
                         deleteExtType($1);
                         deleteExtType($3);
+                        assignVarEnable = true;
                     }
 
 control_expression : logical_expression {
                         checkControlExpression($1);
                         deleteExtType($1);
                     }
-                   | variable_reference ASSIGN_OP logical_expression {
+                   | variable_reference assign_op logical_expression {
                         checkAssignType($1, $3);
                         checkControlExpression($1);
                         deleteExtType($1);
                         deleteExtType($3);
+                        assignVarEnable = true;
                     }
                    ;
 
 increment_expression : logical_expression
-                     | variable_reference ASSIGN_OP logical_expression {
+                     | variable_reference assign_op logical_expression {
                             checkAssignType($1, $3);
                             deleteExtType($1);
                             deleteExtType($3);
+                            assignVarEnable = true;
                         }
                      ;
 
@@ -714,7 +767,11 @@ variable_reference : array_list { $$ = $1; }
                    | ID {
                         $$ = findVariable(symbolTableList->tail, $1, 0);
                         $$->reference += 1;
-                        generateVariableReference(symbolTableList->tail, $1);
+                        // variable assignment need not get the origin value of variable
+                        if (!assignVarEnable)
+                            generateVariableReference(symbolTableList->tail, $1);
+                        if (assignVarEnable)
+                            strcpy(assignVar, $1);
                         free($1);
                     }
                    ;
@@ -736,11 +793,11 @@ dimension : dimension ML_BRACE logical_expression MR_BRACE {
             }
           ;
 
-scalar_type : INT { $$ = INT_t; }
-            | DOUBLE { $$ = DOUBLE_t; }
-            | STRING { $$ = STRING_t; }
-            | BOOL { $$ = BOOL_t; }
-            | FLOAT { $$ = FLOAT_t; }
+scalar_type : INT    { $$ = INT_t;    declareVarType = $$; }
+            | DOUBLE { $$ = DOUBLE_t; declareVarType = $$; }
+            | STRING { $$ = STRING_t; declareVarType = $$; }
+            | BOOL   { $$ = BOOL_t;   declareVarType = $$; }
+            | FLOAT  { $$ = FLOAT_t;  declareVarType = $$; }
             ;
  
 literal_const : INT_CONST {
@@ -780,6 +837,8 @@ literal_const : INT_CONST {
                     $$ = createConstantAttribute(BOOL_t, &val);
                 }
               ;
+
+assign_op: ASSIGN_OP { assignVarEnable = false; }
 
 %%
 

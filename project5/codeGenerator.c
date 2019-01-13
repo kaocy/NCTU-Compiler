@@ -4,25 +4,26 @@
 
 void programInitialization() {
     fprintf(fpout, ".class public output\n");
-    fprintf(fpout, ".super java/lang/Object\n\n");
+    fprintf(fpout, ".super java/lang/Object\n");
+    fprintf(fpout, ".field public static _sc Ljava/util/Scanner;\n\n");
     branchNum = 0;
 }
 
-void generateVariableDeclaration(struct SymTableNode* entry) {
-    // for global variable
-    if (entry->level == 0) {
-        switch (entry->type->baseType) {
+void generateVariableDeclaration(struct SymTable* table, const char* name, struct ExtType* varType) {
+    // only for global variable
+    if (table->prev == NULL) {
+        switch (varType->baseType) {
             case INT_t:
-                fprintf(fpout, ".field public static %s I\n", entry->name);
+                fprintf(fpout, ".field public static %s I\n", name);
                 break;
             case FLOAT_t:
-                fprintf(fpout, ".field public static %s F\n", entry->name);
+                fprintf(fpout, ".field public static %s F\n", name);
                 break;
             case DOUBLE_t:
-                fprintf(fpout, ".field public static %s D\n", entry->name);
+                fprintf(fpout, ".field public static %s D\n", name);
                 break;
             case BOOL_t:
-                fprintf(fpout, ".field public static %s Z\n", entry->name);
+                fprintf(fpout, ".field public static %s Z\n", name);
                 break;
             default:
                 break;
@@ -66,16 +67,16 @@ void generateVariableReference(struct SymTable* table, const char* name) {
                     if (entry->level == 0) {
                         switch (entry->type->baseType) {
                             case INT_t:
-                                fprintf(fpout, "\t.getstatic output/%s I\n", entry->name);
+                                fprintf(fpout, "\tgetstatic output/%s I\n", entry->name);
                                 return ;
                             case FLOAT_t:
-                                fprintf(fpout, "\t.getstatic output/%s F\n", entry->name);
+                                fprintf(fpout, "\tgetstatic output/%s F\n", entry->name);
                                 return ;
                             case DOUBLE_t:
-                                fprintf(fpout, "\t.getstatic output/%s D\n", entry->name);
+                                fprintf(fpout, "\tgetstatic output/%s D\n", entry->name);
                                 return ;
                             case BOOL_t:
-                                fprintf(fpout, "\t.getstatic output/%s Z\n", entry->name);
+                                fprintf(fpout, "\tgetstatic output/%s Z\n", entry->name);
                                 return ;
                             default:
                                 return ;
@@ -152,9 +153,9 @@ void generateArithmeticOP(struct ExtType* base, struct ExtType *type1, struct Ex
     if (base->baseType == FLOAT_t) {
         // may need to convert type
         convertType(base, type2);
-        fprintf(fpout, "\tfstore 99\n");
+        fprintf(fpout, "\tfstore 98\n");
         convertType(base, type1);
-        fprintf(fpout, "\tfload 99\n");
+        fprintf(fpout, "\tfload 98\n");
         
         if (op == '+')  fprintf(fpout, "\tfadd\n");
         if (op == '-')  fprintf(fpout, "\tfsub\n");
@@ -164,9 +165,9 @@ void generateArithmeticOP(struct ExtType* base, struct ExtType *type1, struct Ex
     if (base->baseType == DOUBLE_t) {
         // may need to convert type
         convertType(base, type2);
-        fprintf(fpout, "\tdstore 99\n");
+        fprintf(fpout, "\tdstore 98\n");
         convertType(base, type1);
-        fprintf(fpout, "\tdload 99\n");
+        fprintf(fpout, "\tdload 98\n");
         
         if (op == '+')  fprintf(fpout, "\tdadd\n");
         if (op == '-')  fprintf(fpout, "\tdsub\n");
@@ -234,18 +235,18 @@ void generateRelationalOP(struct ExtType *type1, struct ExtType *type2, const ch
         if (type1->baseType == DOUBLE_t)     fprintf(fpout, "\tdcmpl\n");
     }
     else if (checkType(type2, type1, false) == 1) {
-        if (type2->baseType == FLOAT_t)     fprintf(fpout, "\tfstore 99\n");
-        if (type2->baseType == DOUBLE_t)    fprintf(fpout, "\tdstore 99\n");
+        if (type2->baseType == FLOAT_t)     fprintf(fpout, "\tfstore 98\n");
+        if (type2->baseType == DOUBLE_t)    fprintf(fpout, "\tdstore 98\n");
         convertType(type2, type1);
         if (type2->baseType == INT_t) {
             fprintf(fpout, "\tisub\n");
         }
         if (type2->baseType == FLOAT_t) {
-            fprintf(fpout, "\tfstore 99\n");
+            fprintf(fpout, "\tfstore 98\n");
             fprintf(fpout, "\tfcmpl\n");
         }
         if (type2->baseType == DOUBLE_t) {
-            fprintf(fpout, "\tdstore 99\n");
+            fprintf(fpout, "\tdstore 98\n");
             fprintf(fpout, "\tdcmpl\n");
         }
     }
@@ -263,4 +264,272 @@ void generateRelationalOP(struct ExtType *type1, struct ExtType *type2, const ch
     fprintf(fpout, "LTrue%d:\n", branchNum);
     fprintf(fpout, "\ticonst_1\n");
     fprintf(fpout, "LFalse%d:\n", branchNum++);
+}
+
+void generateVariableInitialization(struct SymTable* table, const char* name, struct ExtType* varType, struct ExtType* valueType, int varNumOffset) {
+    // global
+    if (table->prev == NULL) {
+        switch (varType->baseType) {
+            case INT_t:
+                fprintf(fpout, "\tputstatic output/%s I\n", name);
+                break;
+            case FLOAT_t:
+                convertType(varType, valueType);
+                fprintf(fpout, "\tputstatic output/%s F\n", name);
+                break;
+            case DOUBLE_t:
+                convertType(varType, valueType);
+                fprintf(fpout, "\tputstatic output/%s D\n", name);
+                break;
+            case BOOL_t:
+                fprintf(fpout, "\tputstatic output/%s Z\n", name);
+                break;
+            default:
+                break;
+        }
+    }
+    // local
+    else {
+        switch (varType->baseType) {
+            case INT_t:
+                fprintf(fpout, "\tistore %d\n", table->nextVarNum + varNumOffset);
+                break;
+            case FLOAT_t:
+                convertType(varType, valueType);
+                fprintf(fpout, "\tfstore %d\n", table->nextVarNum + varNumOffset);
+                break;
+            case DOUBLE_t:
+                convertType(varType, valueType);
+                fprintf(fpout, "\tdstore %d\n", table->nextVarNum + varNumOffset);
+                break;
+            case BOOL_t:
+                fprintf(fpout, "\tistore %d\n", table->nextVarNum + varNumOffset);
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+void generateVariableAssignment(struct SymTable* table, const char* name, struct ExtType* valueType) {
+    // find symbol table again due to level and varNum
+    while (table != NULL) {
+        struct SymTableNode *entry = table->head;
+        while (entry != NULL) {
+            if (entry->kind == PARAMETER_t || entry->kind == VARIABLE_t) {
+                if (strcmp(entry->name, name) == 0 &&
+                    checkType(entry->type, valueType, false) == 1) {
+                    if (entry->level == 0) {
+                        switch (entry->type->baseType) {
+                            case INT_t:
+                                fprintf(fpout, "\tputstatic output/%s I\n", entry->name);
+                                return ;
+                            case FLOAT_t:
+                                convertType(entry->type, valueType);
+                                fprintf(fpout, "\tputstatic output/%s F\n", entry->name);
+                                return ;
+                            case DOUBLE_t:
+                                convertType(entry->type, valueType);
+                                fprintf(fpout, "\tputstatic output/%s D\n", entry->name);
+                                return ;
+                            case BOOL_t:
+                                fprintf(fpout, "\tputstatic output/%s Z\n", entry->name);
+                                return ;
+                            default:
+                                return ;
+                        }
+                    }
+                    else {
+                        switch (entry->type->baseType) {
+                            case INT_t:
+                                fprintf(fpout, "\tistore %d\n", entry->varNum);
+                                return ;
+                            case FLOAT_t:
+                                convertType(entry->type, valueType);
+                                fprintf(fpout, "\tfstore %d\n", entry->varNum);
+                                return ;
+                            case DOUBLE_t:
+                                convertType(entry->type, valueType);
+                                fprintf(fpout, "\tdstore %d\n", entry->varNum);
+                                return ;
+                            case BOOL_t:
+                                fprintf(fpout, "\tistore %d\n", entry->varNum);
+                                return ;
+                            default:
+                                return ;
+                        }
+                    }
+                }
+            }
+            entry = entry->next;
+        }
+        table = table->prev;
+    }
+}
+
+void generatePrintStart() {
+    fprintf(fpout, "\tgetstatic java/lang/System/out Ljava/io/PrintStream;\n");
+}
+
+void generatePrintEnd(struct ExtType* type) {
+    switch (type->baseType) {
+        case INT_t:
+            fprintf(fpout, "\tinvokevirtual java/io/PrintStream/print(I)V\n");
+            break;
+        case FLOAT_t:
+            fprintf(fpout, "\tinvokevirtual java/io/PrintStream/print(F)V\n");
+            break;
+        case DOUBLE_t:
+            fprintf(fpout, "\tinvokevirtual java/io/PrintStream/print(D)V\n");
+            break;
+        case BOOL_t:
+            fprintf(fpout, "\tinvokevirtual java/io/PrintStream/print(Z)V\n");
+            break;
+        case STRING_t:
+            fprintf(fpout, "\tinvokevirtual java/io/PrintStream/print(Ljava/lang/String;)V\n");
+            break;
+        default:
+            break;
+    }
+}
+
+void generateReadStart(struct SymTable* table, const char* name, struct ExtType* varType) {
+    fprintf(fpout, "\tgetstatic output/_sc Ljava/util/Scanner;\n");
+    switch (varType->baseType) {
+        case INT_t:
+            fprintf(fpout, "\tinvokevirtual java/util/Scanner/nextInt()I\n");
+            break;
+        case FLOAT_t:
+            fprintf(fpout, "\tinvokevirtual java/util/Scanner/nextFloat()F\n");
+            break;
+        case DOUBLE_t:
+            fprintf(fpout, "\tinvokevirtual java/util/Scanner/nextDouble()D\n");
+            break;
+        case BOOL_t:
+            fprintf(fpout, "\tinvokevirtual java/util/Scanner/nextBoolean()Z\n");
+            break;
+        default:
+            break;
+    }
+    // find symbol table again due to level and varNum
+    while (table != NULL) {
+        struct SymTableNode *entry = table->head;
+        while (entry != NULL) {
+            if (entry->kind == PARAMETER_t || entry->kind == VARIABLE_t) {
+                if (strcmp(entry->name, name) == 0) {
+                    if (entry->level == 0) {
+                        switch (entry->type->baseType) {
+                            case INT_t:
+                                fprintf(fpout, "\tputstatic output/%s I\n", entry->name);
+                                return ;
+                            case FLOAT_t:
+                                convertType(entry->type, varType);
+                                fprintf(fpout, "\tputstatic output/%s F\n", entry->name);
+                                return ;
+                            case DOUBLE_t:
+                                convertType(entry->type, varType);
+                                fprintf(fpout, "\tputstatic output/%s D\n", entry->name);
+                                return ;
+                            case BOOL_t:
+                                fprintf(fpout, "\tputstatic output/%s Z\n", entry->name);
+                                return ;
+                            default:
+                                return ;
+                        }
+                    }
+                    else {
+                        switch (entry->type->baseType) {
+                            case INT_t:
+                                fprintf(fpout, "\tistore %d\n", entry->varNum);
+                                return ;
+                            case FLOAT_t:
+                                convertType(entry->type, varType);
+                                fprintf(fpout, "\tfstore %d\n", entry->varNum);
+                                return ;
+                            case DOUBLE_t:
+                                convertType(entry->type, varType);
+                                fprintf(fpout, "\tdstore %d\n", entry->varNum);
+                                return ;
+                            case BOOL_t:
+                                fprintf(fpout, "\tistore %d\n", entry->varNum);
+                                return ;
+                            default:
+                                return ;
+                        }
+                    }
+                }
+            }
+            entry = entry->next;
+        }
+        table = table->prev;
+    }
+}
+
+void generateFunctionStart(struct ExtType* returnType, struct FuncAttrNode* paramHead, const char* name, bool isEnrtyFunc) {
+    fprintf(fpout, ".method public static %s(", name);
+
+    if (paramHead != NULL) {
+        while (paramHead != NULL) {
+            switch (paramHead->value->baseType) {
+                case INT_t:
+                    fprintf(fpout, "I");
+                    break;
+                case FLOAT_t:
+                    fprintf(fpout, "F");
+                    break;
+                case DOUBLE_t:
+                    fprintf(fpout, "D");
+                    break;
+                case BOOL_t:
+                    fprintf(fpout, "Z");
+                    break;
+                default:
+                    break;
+            }
+            paramHead = paramHead->next;
+        }
+    }
+    else if (isEnrtyFunc) {
+        fprintf(fpout, "[Ljava/lang/String;");
+    }
+
+    fprintf(fpout, ")");
+
+    if (isEnrtyFunc) {
+        fprintf(fpout, "V\n");
+    }
+    else {
+        switch (returnType->baseType) {
+            case INT_t:
+                fprintf(fpout, "I\n");
+                break;
+            case FLOAT_t:
+                fprintf(fpout, "F\n");
+                break;
+            case DOUBLE_t:
+                fprintf(fpout, "D\n");
+                break;
+            case BOOL_t:
+                fprintf(fpout, "Z\n");
+                break;
+            case VOID_t:
+                fprintf(fpout, "V\n");
+                break;
+            default:
+                break;
+        }
+    }
+
+    fprintf(fpout, "\t.limit stack 100\n");
+    fprintf(fpout, "\t.limit locals 100\n");
+    fprintf(fpout, "\tnew java/util/Scanner\n");
+    fprintf(fpout, "\tdup\n");
+    fprintf(fpout, "\tgetstatic java/lang/System/in Ljava/io/InputStream;\n");
+    fprintf(fpout, "\tinvokespecial java/util/Scanner/<init>(Ljava/io/InputStream;)V\n");
+    fprintf(fpout, "\tputstatic output/_sc Ljava/util/Scanner;\n");
+}
+
+void generateFunctionEnd(bool isVoid) {
+    if (isVoid) fprintf(fpout, "\treturn\n");
+    fprintf(fpout, ".end method\n");
 }
