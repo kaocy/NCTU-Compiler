@@ -47,6 +47,7 @@ Output:
 1 is equal to 1
 2 is not equal to 3
 1.732 is greater than 1.414
+test
 
 Input:
 1.414
